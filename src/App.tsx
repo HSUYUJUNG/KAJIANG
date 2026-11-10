@@ -4,31 +4,8 @@ import { defaultSettings, saveName, savedName } from "./net/firebase";
 import type { Settings } from "./net/host";
 import { LobbyPreview, Online } from "./ui/Online";
 import { Practice } from "./ui/Practice";
-import { Tile, TileLookProvider, TileSheet, type BackColor, type TileLook } from "./ui/Tile";
 
 type Screen = "home" | "room" | "practice" | "preview";
-
-function isLook(v: string | null): v is TileLook {
-  return v === "A" || v === "B" || v === "C" || v === "D";
-}
-function isBack(v: string | null): v is BackColor {
-  return v === "green" || v === "blue" || v === "pink" || v === "yellow";
-}
-function readLook(): TileLook {
-  const q = new URLSearchParams(location.search);
-  const fromUrl = q.get("tiles") || q.get("sheet");
-  if (isLook(fromUrl)) return fromUrl;
-  const saved = localStorage.getItem("kajiang.tiles");
-  if (isLook(saved)) return saved;
-  return "D";
-}
-function readBack(): BackColor {
-  const q = new URLSearchParams(location.search).get("back");
-  if (isBack(q)) return q;
-  const saved = localStorage.getItem("kajiang.back");
-  if (isBack(saved)) return saved;
-  return "green";
-}
 
 function readTheme(): "light" | "dark" | "auto" {
   const v = localStorage.getItem("kajiang.theme");
@@ -37,8 +14,6 @@ function readTheme(): "light" | "dark" | "auto" {
 
 export function App() {
   const [theme, setTheme] = useState(readTheme);
-  const [look, setLook] = useState<TileLook>(readLook);
-  const [back, setBack] = useState<BackColor>(readBack);
   const [name, setName] = useState(savedName);
   const [screen, setScreen] = useState<Screen>("home");
   const [code, setCode] = useState("");
@@ -97,40 +72,7 @@ export function App() {
     setScreen("room");
   };
 
-  const chooseLook = (next: TileLook) => {
-    setLook(next);
-    localStorage.setItem("kajiang.tiles", next);
-  };
-  const chooseBack = (next: BackColor) => {
-    setBack(next);
-    localStorage.setItem("kajiang.back", next);
-  };
-  const params = new URLSearchParams(location.search);
-  if (params.get("closeup") === "1") {
-    return (
-      <TileLookProvider look="D" back={back}>
-        <div className="app" style={{ maxWidth: 980, background: "#fff" }}>
-          <div className="sheet-row" style={{ flexWrap: "nowrap" }}>
-            {[18, 9, 4, 32, 33].map((t) => <Tile key={t} t={t} size={150} look="D" />)}
-          </div>
-        </div>
-      </TileLookProvider>
-    );
-  }
-  const sheet = params.get("sheet");
-  if (isLook(sheet)) {
-    return (
-      <TileLookProvider look={sheet} back={back}>
-        <div className="app" style={{ maxWidth: 980, background: "#fff" }}>
-          <h1>KAJIANG</h1>
-          <TileSheet look={sheet} />
-        </div>
-      </TileLookProvider>
-    );
-  }
-
   return (
-    <TileLookProvider look={look} back={back}>
     <div className="app">
       <header className="top">
         <div className="brand">
@@ -149,21 +91,6 @@ export function App() {
       {screen === "home" ? (
         <div className="stack">
           <section className="card stack">
-            <div className="seg" aria-label="牌面">
-              <button type="button" aria-pressed={look === "D"} onClick={() => chooseLook("D")}>D 實體</button>
-              <button type="button" aria-pressed={look === "A"} onClick={() => chooseLook("A")}>A 雀神</button>
-              <button type="button" aria-pressed={look === "B"} onClick={() => chooseLook("B")}>B 雀魂</button>
-              <button type="button" aria-pressed={look === "C"} onClick={() => chooseLook("C")}>C 傳統</button>
-            </div>
-            {look === "D" ? (
-              <div className="seg" aria-label="牌背顏色">
-                <button type="button" aria-pressed={back === "green"} onClick={() => chooseBack("green")}>綠背</button>
-                <button type="button" aria-pressed={back === "blue"} onClick={() => chooseBack("blue")}>藍背</button>
-                <button type="button" aria-pressed={back === "pink"} onClick={() => chooseBack("pink")}>粉背</button>
-                <button type="button" aria-pressed={back === "yellow"} onClick={() => chooseBack("yellow")}>黃背</button>
-              </div>
-            ) : null}
-            <p className="muted">預設 D：白牌面、底部露出牌背色，五萬寫成伍。A 雀神、B 雀魂、C 傳統仍可切換。</p>
             <label className="field">暱稱
               <input maxLength={8} value={name} placeholder="例如 春" onChange={(e) => { setName(e.target.value); saveName(e.target.value.trim().slice(0, 8)); }} />
             </label>
@@ -194,7 +121,6 @@ export function App() {
         </div>
       ) : null}
     </div>
-    </TileLookProvider>
   );
 }
 
