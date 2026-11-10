@@ -49,7 +49,6 @@ export type Action =
   | { type: "claim"; kind: "pass" | "ron" | "pon" | "kan" | "chi"; tiles?: number[] }
   | { type: "rob"; yes: boolean };
 
-const REL = ["", "下家", "對家", "上家"];
 export function relSeat(me: number, seat: number): number {
   return (seat - me + 4) % 4;
 }
@@ -150,16 +149,16 @@ export function TableView(props: {
         {props.header}
       </div>
       <div className="opp-grid">
-        {[left, top, right].map((p) => (
-          <Opp key={p} model={m} seat={p} meldSize={oppMeld} hide={hideMeld(p)} />
+        {([[left, "左"], [top, "上"], [right, "右"]] as const).map(([p, place]) => (
+          <Opp key={p} model={m} seat={p} place={place} meldSize={oppMeld} hide={hideMeld(p)} />
         ))}
       </div>
       <div className="felt">
         <div className="r-n"><River model={m} seat={top} size={river} align="center" hide={hideRiver(top)} /></div>
         <div className="r-w"><River model={m} seat={left} size={river} align="start" hide={hideRiver(left)} /></div>
         <div className="info">
-          <div><b>{HONORS[m.wind]}風</b></div>
-          <div>第 {m.handNo + 1} 局{m.streak > 0 ? ` 連${m.streak}` : ""}</div>
+          <div>{HONORS[m.wind]}風圈</div>
+          <div>第{m.handNo + 1}局{m.streak > 0 ? ` 連${m.streak}` : ""}</div>
           <div>莊 {m.names[m.dealer]}</div>
           <div>剩 {m.wallLeft}</div>
         </div>
@@ -168,7 +167,7 @@ export function TableView(props: {
         {anim.cur ? <Fly ev={anim.cur} fly={anim.fly} narrow={narrow} me={m.me} myMelds={m.myMelds} /> : null}
       </div>
       <div className={"me-box" + (myTurn || m.prompt?.kind === "claim" || m.prompt?.kind === "rob" ? " on" : "")}>
-        <SeatLine model={m} seat={m.me} />
+        <SeatLine model={m} seat={m.me} plain />
         <MeldRow melds={m.myMelds} size={myMeld} hide={hideMeld(m.me)} seat={m.me} />
         {actions}
         <div className="hand">
@@ -241,33 +240,29 @@ function actionButtons(m: TableModel, blocking: boolean, selTile: number | null,
   return <div className="actions">{nodes}</div>;
 }
 
-function SeatLine(props: { model: TableModel; seat: number }) {
+function SeatLine(props: { model: TableModel; seat: number; plain?: boolean }) {
   const { model: m, seat } = props;
-  const rel = REL[relSeat(m.me, seat)];
   const wind = HONORS[seatWind(seat, m.dealer)];
-  const tags = [
-    m.dealer === seat ? `莊${m.streak > 0 ? `連${m.streak}` : ""}` : "",
-    m.bots?.[seat] ? "電腦" : "",
-    m.auto?.[seat] ? "託管" : "",
-    m.connected && m.connected[seat] === false && !m.bots?.[seat] ? "離線" : "",
-  ].filter(Boolean);
+  const dealer = m.dealer === seat ? (m.streak > 0 ? `莊連${m.streak}` : "莊") : "";
+  const status = !props.plain && m.connected && m.connected[seat] === false && !m.bots?.[seat] ? "離線" : props.plain && m.auto?.[seat] ? "託管" : "";
   return (
-    <div className="row" style={{ justifyContent: "center", gap: 6, fontSize: 13 }}>
+    <div className="row" style={{ justifyContent: props.plain ? "flex-start" : "center", gap: 6, fontSize: 13 }}>
       <b className="who">{m.names[seat]}</b>
-      {rel && m.names[seat] !== rel ? <span className="muted">{rel}</span> : null}
-      <span className="muted">{wind}</span>
-      {tags.map((t) => <span key={t} className="muted">{t}</span>)}
-      <b>{money(m.scores[seat] || 0)}</b>
+      <span>{wind}</span>
+      {dealer ? <span>{dealer}</span> : null}
+      {status ? <span className="muted">{status}</span> : null}
+      <span>{money(m.scores[seat] || 0)}</span>
     </div>
   );
 }
 
-function Opp(props: { model: TableModel; seat: number; meldSize: number; hide: number }) {
+function Opp(props: { model: TableModel; seat: number; place: string; meldSize: number; hide: number }) {
   const pl = props.model.players[props.seat];
   const reveal = props.model.reveal;
   const on = props.model.phase !== "end" && props.model.turn === props.seat;
   return (
     <div className={"opp" + (on ? " on" : "")}>
+      <div className="place">{props.place}</div>
       <SeatLine model={props.model} seat={props.seat} />
       <div className="backs" style={{ marginTop: 4 }}>
         {reveal && pl.revealed
@@ -283,7 +278,7 @@ function River(props: { model: TableModel; seat: number; size: number; align: "s
   const ds = props.model.players[props.seat].discards;
   return (
     <div className={"river " + (props.align === "center" ? "center" : props.align === "end" ? "end" : "start")} data-rv={props.seat}>
-      <div className="river-cap">{props.model.names[props.seat]}</div>
+      <div className="river-cap">{props.model.names[props.seat]}打出</div>
       <div className="river-grid" style={{ gridTemplateColumns: `repeat(6, ${props.size}px)` }}>
         {ds.map((t, i) => (
           <div key={i} data-rl={`${props.seat}-${i}`} style={{ visibility: props.hide === i ? "hidden" : "visible" }}>

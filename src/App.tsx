@@ -76,9 +76,8 @@ export function App() {
     <div className="app">
       <header className="top">
         <div className="brand">
-          <div className="seal">卡</div>
           <div>
-            <h1>卡將</h1>
+            <h1>KAJIANG</h1>
             <p className="sub">台灣十六張・南部台・跟朋友連線</p>
           </div>
         </div>

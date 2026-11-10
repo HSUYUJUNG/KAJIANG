@@ -254,7 +254,7 @@ function CpuMatch(props: { demo: boolean }) {
         onAction={onAction}
         settlement={settled}
         stake={stake}
-        header={<button className="btn quiet" onClick={() => { setMatch(null); setGame(null); setSettled(null); }}>結束</button>}
+        header={<button className="btn quiet" onClick={() => { setMatch(null); setGame(null); setSettled(null); }}>結束這場</button>}
         footer={game.phase === "end" && settled ? (
           <div className="stack" style={{ marginTop: 8 }}>
             {game.result && game.result.kind !== "draw" ? <p className="muted">{winningText(game.players[game.result.winner].hand, game.players[game.result.winner].melds)}</p> : null}
