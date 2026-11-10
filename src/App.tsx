@@ -4,7 +4,7 @@ import { defaultSettings, saveName, savedName } from "./net/firebase";
 import type { Settings } from "./net/host";
 import { LobbyPreview, Online } from "./ui/Online";
 import { Practice } from "./ui/Practice";
-import { TileLookProvider, TileSheet, type BackColor, type TileLook } from "./ui/Tile";
+import { Tile, TileLookProvider, TileSheet, type BackColor, type TileLook } from "./ui/Tile";
 
 type Screen = "home" | "room" | "practice" | "preview";
 
@@ -105,7 +105,19 @@ export function App() {
     setBack(next);
     localStorage.setItem("kajiang.back", next);
   };
-  const sheet = new URLSearchParams(location.search).get("sheet");
+  const params = new URLSearchParams(location.search);
+  if (params.get("closeup") === "1") {
+    return (
+      <TileLookProvider look="D" back={back}>
+        <div className="app" style={{ maxWidth: 980, background: "#fff" }}>
+          <div className="sheet-row" style={{ flexWrap: "nowrap" }}>
+            {[18, 9, 4, 32, 33].map((t) => <Tile key={t} t={t} size={150} look="D" />)}
+          </div>
+        </div>
+      </TileLookProvider>
+    );
+  }
+  const sheet = params.get("sheet");
   if (isLook(sheet)) {
     return (
       <TileLookProvider look={sheet} back={back}>

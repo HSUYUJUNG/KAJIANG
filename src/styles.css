@@ -1,3 +1,17 @@
+@font-face {
+  font-family: "KjKai";
+  src: url("./assets/fonts/noto-serif-tc-700.ttf") format("truetype");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "KjBrush";
+  src: url("./assets/fonts/ma-shan-zheng.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
 :root {
   color-scheme: light;
   --bg: #ffffff;
@@ -187,7 +201,7 @@ input, select {
 .look-a .tile-face { margin-bottom: 12%; border-radius: 12% 12% 16% 16%; }
 .look-b .tile-face { margin-bottom: 16%; border-radius: 16%; background: #fff; }
 .look-c .tile-face { margin-bottom: 8%; border-radius: 7%; background: #f7f1e4; }
-.look-d .tile-face { margin-bottom: 14%; border-radius: 10% 10% 6% 6%; background: #fff; }
+.look-d .tile-face { margin-bottom: 14%; border-radius: 10% 10% 6% 6%; background: linear-gradient(180deg, #fffefb 0%, #f4efe4 100%); }
 .tile-face svg { display: block; width: 100%; height: 100%; }
 .tile.back {
   background: linear-gradient(180deg, #3aa37a 0%, #2e7d5b 72%, #1b5c40 100%);

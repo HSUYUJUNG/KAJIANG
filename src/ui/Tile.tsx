@@ -19,7 +19,8 @@ export function useBackColor(): BackColor {
 const NUMS = ["一", "二", "三", "四", "五", "六", "七", "八", "九"];
 const HONORS = ["東", "南", "西", "北", "中", "發", "白"];
 const FONT = 'system-ui, "PingFang TC", "Noto Sans CJK TC", sans-serif';
-const BRUSH = '"Songti TC", "PMingLiU", "Noto Serif CJK TC", "Source Han Serif TC", serif';
+const KAI = '"KjKai", "Songti TC", "PMingLiU", serif';
+const BRUSH = '"KjBrush", "KjKai", "Songti TC", serif';
 
 type Pal = { ink: string; red: string; green: string; blue: string; hi: string; num: number; wan: number; honor: number; weight: number };
 const PAL: Record<TileLook, Pal> = {
@@ -77,14 +78,21 @@ function Dot(props: { cx: number; cy: number; r: number; c: string; look: TileLo
 function Stick(props: { cx: number; cy: number; h: number; c: string; look: TileLook; rot?: number }) {
   const { cx, cy, h, c, look, rot } = props;
   if (look === "D") {
-    const bw = 2.15;
+    const bw = 2.7;
     const y0 = cy - h / 2;
-    const nodes = [0.28, 0.5, 0.72].map((p) => y0 + h * p);
+    const light = c === "#d01212" ? "#ff8a80" : "#7ddea0";
+    const nodes = [0.22, 0.46, 0.7].map((p) => y0 + h * p);
     return (
       <g transform={rot ? `rotate(${rot} ${cx} ${cy})` : undefined}>
-        <rect x={cx - bw / 2} y={y0} width={bw} height={h} rx={0.4} fill={c} />
-        <rect x={cx - 0.28} y={y0 + 0.6} width={0.55} height={Math.max(1, h - 1.2)} fill="#141414" />
-        {nodes.map((y) => <line key={y} x1={cx - bw / 2} x2={cx + bw / 2} y1={y} y2={y} stroke="#141414" strokeWidth={0.7} />)}
+        <rect x={cx - bw / 2} y={y0} width={bw} height={h} rx={0.5} fill={c} />
+        <rect x={cx - bw / 2} y={y0} width={0.7} height={h} fill={light} opacity={0.85} />
+        <rect x={cx + bw / 2 - 0.55} y={y0} width={0.55} height={h} fill="#141414" opacity={0.55} />
+        {nodes.map((y) => (
+          <g key={y}>
+            <rect x={cx - bw / 2 - 0.15} y={y - 0.45} width={bw + 0.3} height={1.15} rx={0.2} fill="#141414" />
+            <rect x={cx - bw / 2} y={y - 0.15} width={bw * 0.45} height={0.35} fill={light} />
+          </g>
+        ))}
       </g>
     );
   }
@@ -102,21 +110,27 @@ function Stick(props: { cx: number; cy: number; h: number; c: string; look: Tile
   );
 }
 
-function flowerDisc() {
-  const petals = Array.from({ length: 8 }, (_, i) => {
-    const a = (i / 8) * Math.PI * 2;
-    const px = 15 + Math.cos(a) * 5.2;
-    const py = 21 + Math.sin(a) * 5.2;
-    return <ellipse key={i} cx={px} cy={py} rx={2.5} ry={4.1} transform={`rotate(${(a * 180) / Math.PI + 90} ${px} ${py})`} fill={i % 2 ? "#d01212" : "#157a32"} stroke="#141414" strokeWidth={0.45} />;
+function petalRing(count: number, radius: number, rx: number, ry: number, spin: number) {
+  return Array.from({ length: count }, (_, i) => {
+    const a = (i / count) * Math.PI * 2 + spin;
+    const px = 15 + Math.cos(a) * radius;
+    const py = 21 + Math.sin(a) * radius;
+    return <ellipse key={`${count}-${i}`} cx={px} cy={py} rx={rx} ry={ry} transform={`rotate(${(a * 180) / Math.PI + 90} ${px} ${py})`} fill={i % 2 ? "#d01212" : "#157a32"} stroke="#141414" strokeWidth={0.35} />;
   });
+}
+
+function flowerDisc() {
   return (
     <g>
-      <circle cx={15} cy={21} r={12.2} fill="#141414" />
-      <circle cx={15} cy={21} r={11.2} fill="#fff" />
-      {petals}
-      <circle cx={15} cy={21} r={3.6} fill="#141414" />
-      <circle cx={15} cy={21} r={2.2} fill="#d01212" />
-      <circle cx={15} cy={21} r={0.8} fill="#157a32" />
+      <circle cx={15} cy={21} r={13} fill="#141414" />
+      <circle cx={15} cy={21} r={12.1} fill="#fffef8" />
+      <circle cx={15} cy={21} r={11.3} fill="none" stroke="#141414" strokeWidth={0.45} />
+      {petalRing(12, 7.4, 1.7, 3.5, 0)}
+      <circle cx={15} cy={21} r={5.1} fill="#141414" />
+      <circle cx={15} cy={21} r={4.3} fill="#fff" />
+      {petalRing(6, 2.3, 1.05, 2.1, 0.4)}
+      <circle cx={15} cy={21} r={1.7} fill="#157a32" stroke="#141414" strokeWidth={0.35} />
+      <circle cx={15} cy={21} r={0.65} fill="#d01212" />
     </g>
   );
 }
@@ -124,28 +138,49 @@ function flowerDisc() {
 function ornateBlank() {
   return (
     <g stroke="#141414" fill="none">
-      <rect x={5.6} y={6.2} width={18.8} height={29.6} rx={1.2} strokeWidth={1.7} />
-      <rect x={8.1} y={8.8} width={13.8} height={24.4} rx={0.6} strokeWidth={0.7} />
-      <path d="M7.2 8.2 h2.2 M7.2 8.2 v2.2 M22.8 8.2 h-2.2 M22.8 8.2 v2.2 M7.2 33.8 h2.2 M7.2 33.8 v-2.2 M22.8 33.8 h-2.2 M22.8 33.8 v-2.2" strokeWidth={1.1} strokeLinecap="square" />
+      <rect x={5.2} y={5.6} width={19.6} height={30.8} rx={1.4} strokeWidth={1.5} />
+      <rect x={7.4} y={7.8} width={15.2} height={26.4} rx={0.8} strokeWidth={0.55} />
+      <path d="M6.4 7.4c1.5-.9 2.6-.4 3.2.6 M23.6 7.4c-1.5-.9-2.6-.4-3.2.6 M6.4 34.6c1.5.9 2.6.4 3.2-.6 M23.6 34.6c-1.5.9-2.6.4-3.2-.6" strokeWidth={0.9} strokeLinecap="round" />
+      <path d="M15 9.2 v1.4 M15 31.4 v1.4 M8.6 21 h1.4 M20 21 h1.4" strokeWidth={0.6} />
+    </g>
+  );
+}
+
+function peacock() {
+  const tail = [
+    { x: 6.2, y: 29, rot: -36 },
+    { x: 11, y: 32.5, rot: -12 },
+    { x: 16, y: 33.4, rot: 6 },
+    { x: 21.2, y: 31.2, rot: 28 },
+  ];
+  return (
+    <g>
+      <path d="M2 39.2 Q10 36.2 16 37.6 Q24 39.4 29 36" stroke="#6a3b18" strokeWidth={2.1} fill="none" strokeLinecap="round" />
+      {tail.map((f) => (
+        <g key={f.x} transform={`translate(${f.x} ${f.y}) rotate(${f.rot})`}>
+          <ellipse cx={0} cy={0} rx={2.15} ry={6.2} fill="#0e8634" stroke="#102416" strokeWidth={0.4} />
+          <ellipse cx={0} cy={2.6} rx={1.35} ry={1.45} fill="#1a4fd0" stroke="#102416" strokeWidth={0.35} />
+          <circle cx={0} cy={2.6} r={0.48} fill="#e10600" />
+        </g>
+      ))}
+      <ellipse cx={15} cy={18.5} rx={5.2} ry={6.4} fill="#14943c" stroke="#102416" strokeWidth={0.5} />
+      <ellipse cx={13.6} cy={17.6} rx={2} ry={3.6} fill="#c8f5d4" opacity={0.75} />
+      <path d="M11.2 17.4 C6.4 15.6 5.2 21.4 10 22.2 C7.8 19.4 9.4 17.6 11.2 17.4 Z" fill="#1a4fd0" stroke="#102416" strokeWidth={0.35} />
+      <path d="M18.6 17.2 C23.2 15.8 24 21.2 19.6 22" fill="#0c4ec4" stroke="#102416" strokeWidth={0.3} />
+      <path d="M15.2 13.2 C14.8 10.6 16 8.2 16.8 6.6" stroke="#14943c" strokeWidth={2.1} fill="none" strokeLinecap="round" />
+      <circle cx={17.2} cy={6.2} r={2.5} fill="#e10600" stroke="#102416" strokeWidth={0.4} />
+      <path d="M16.2 4 C16.8 2.1 18.4 2.6 17.6 4.4 M18.2 3.8 C19.8 2.2 20.2 4.2 18.4 4.8 M15.4 4.3 C14 2.6 13.2 4.2 15 5" stroke="#e10600" strokeWidth={0.9} fill="none" strokeLinecap="round" />
+      <circle cx={16.4} cy={5.9} r={0.55} fill="#fff" stroke="#102416" strokeWidth={0.25} />
+      <circle cx={16.4} cy={5.9} r={0.22} fill="#102416" />
+      <path d="M19.4 6.6 L21.6 7 L19.2 7.6 Z" fill="#e6b000" stroke="#102416" strokeWidth={0.25} />
+      <path d="M13.4 24.2 L12.6 36.6 M16.4 24.4 L15.8 37" stroke="#102416" strokeWidth={0.9} strokeLinecap="round" />
+      <path d="M12.6 36.6 l-1.3.7 M12.6 36.6 l1 .8 M15.8 37 l-1.1.6 M15.8 37 l1.2.5" stroke="#102416" strokeWidth={0.6} strokeLinecap="round" />
     </g>
   );
 }
 
 function bird(look: TileLook, pal: Pal) {
-  if (look === "D") {
-    return (
-      <g>
-        <path d="M15 30 L9.5 38 M15 30 V39 M15 30 L20.5 38" stroke="#141414" strokeWidth={1.1} strokeLinecap="round" />
-        <path d="M15 30 L9.5 38 M15 30 V39 M15 30 L20.5 38" stroke={pal.green} strokeWidth={0.7} strokeLinecap="round" />
-        <ellipse cx={15} cy={21} rx={5} ry={7.2} fill={pal.green} stroke="#141414" strokeWidth={0.6} />
-        <path d="M10 19.5c-5.2-.2-5.6 4.6-1.4 5.4z" fill="#141414" />
-        <path d="M20 19.5c5.2-.2 5.6 4.6 1.4 5.4z" fill={pal.red} />
-        <circle cx={15} cy={11.2} r={3.7} fill={pal.red} stroke="#141414" strokeWidth={0.55} />
-        <path d="M15 13.2 L13.4 15.6 H16.6 Z" fill="#141414" />
-        <circle cx={13.6} cy={10.4} r={0.7} fill="#fff" stroke="#141414" strokeWidth={0.3} />
-      </g>
-    );
-  }
+  if (look === "D") return peacock();
   if (look === "B") {
     return (
       <g>
@@ -223,11 +258,11 @@ export function tileFace(t: number, look: TileLook = "A") {
     }
     const c = t === 31 ? pal.red : t === 32 ? pal.green : pal.ink;
     const face = look === "D" ? BRUSH : FONT;
-    return <text x={15} y={29} textAnchor="middle" fontSize={pal.honor} fontWeight={look === "D" ? 700 : pal.weight} fill={c} fontFamily={face}>{HONORS[t - 27]}</text>;
+    return <text x={15} y={look === "D" ? 30 : 29} textAnchor="middle" fontSize={look === "D" ? 26 : pal.honor} fontWeight={look === "D" ? 400 : pal.weight} fill={c} fontFamily={face}>{HONORS[t - 27]}</text>;
   }
   if (suitOf(t) === 0) {
     const numeral = look === "D" && n === 5 ? "伍" : NUMS[n - 1];
-    const face = look === "D" ? BRUSH : FONT;
+    const face = look === "D" ? KAI : FONT;
     return (
       <>
         <text x={15} y={look === "B" ? 17 : 16} textAnchor="middle" fontSize={pal.num} fontWeight={pal.weight} fill={pal.ink} fontFamily={face}>{numeral}</text>
