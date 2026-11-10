@@ -1,0 +1,28 @@
+{
+  "name": "kajiang",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "test": "tsc --noEmit && vitest run src",
+    "test:emu": "firebase emulators:exec --only database --project demo-kajiang \"vitest run tests/multiplayer.e2e.test.ts\""
+  },
+  "dependencies": {
+    "firebase": "^11.10.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "^4.0.1",
+    "@types/react": "^18.3.18",
+    "@types/react-dom": "^18.3.5",
+    "@vitejs/plugin-react": "^4.3.4",
+    "firebase-tools": "^14.17.0",
+    "typescript": "^5.7.3",
+    "vite": "^6.0.7",
+    "vitest": "^2.1.8"
+  }
+}
