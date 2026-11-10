@@ -4,8 +4,18 @@ import { defaultSettings, saveName, savedName } from "./net/firebase";
 import type { Settings } from "./net/host";
 import { LobbyPreview, Online } from "./ui/Online";
 import { Practice } from "./ui/Practice";
+import { TileLookProvider, TileSheet, type TileLook } from "./ui/Tile";
 
 type Screen = "home" | "room" | "practice" | "preview";
+
+function readLook(): TileLook {
+  const q = new URLSearchParams(location.search);
+  const fromUrl = q.get("tiles") || q.get("sheet");
+  if (fromUrl === "A" || fromUrl === "B" || fromUrl === "C") return fromUrl;
+  const saved = localStorage.getItem("kajiang.tiles");
+  if (saved === "A" || saved === "B" || saved === "C") return saved;
+  return "A";
+}
 
 function readTheme(): "light" | "dark" | "auto" {
   const v = localStorage.getItem("kajiang.theme");
@@ -14,6 +24,7 @@ function readTheme(): "light" | "dark" | "auto" {
 
 export function App() {
   const [theme, setTheme] = useState(readTheme);
+  const [look, setLook] = useState<TileLook>(readLook);
   const [name, setName] = useState(savedName);
   const [screen, setScreen] = useState<Screen>("home");
   const [code, setCode] = useState("");
@@ -72,7 +83,24 @@ export function App() {
     setScreen("room");
   };
 
+  const chooseLook = (next: TileLook) => {
+    setLook(next);
+    localStorage.setItem("kajiang.tiles", next);
+  };
+  const sheet = new URLSearchParams(location.search).get("sheet");
+  if (sheet === "A" || sheet === "B" || sheet === "C") {
+    return (
+      <TileLookProvider look={sheet}>
+        <div className="app" style={{ maxWidth: 980, background: "#fff" }}>
+          <h1>KAJIANG</h1>
+          <TileSheet look={sheet} />
+        </div>
+      </TileLookProvider>
+    );
+  }
+
   return (
+    <TileLookProvider look={look}>
     <div className="app">
       <header className="top">
         <div className="brand">
@@ -91,6 +119,12 @@ export function App() {
       {screen === "home" ? (
         <div className="stack">
           <section className="card stack">
+            <div className="seg" aria-label="牌面">
+              <button type="button" aria-pressed={look === "A"} onClick={() => chooseLook("A")}>A 雀神</button>
+              <button type="button" aria-pressed={look === "B"} onClick={() => chooseLook("B")}>B 雀魂</button>
+              <button type="button" aria-pressed={look === "C"} onClick={() => chooseLook("C")}>C 傳統</button>
+            </div>
+            <p className="muted">A 接近雀神的白牌淡綠邊，B 接近雀魂的高牌紅邊，C 是較乾淨的實體牌。預設 A。</p>
             <label className="field">暱稱
               <input maxLength={8} value={name} placeholder="例如 春" onChange={(e) => { setName(e.target.value); saveName(e.target.value.trim().slice(0, 8)); }} />
             </label>
@@ -121,6 +155,7 @@ export function App() {
         </div>
       ) : null}
     </div>
+    </TileLookProvider>
   );
 }
 
