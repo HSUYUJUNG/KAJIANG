@@ -6,47 +6,13 @@
         ".write": "auth != null && data.exists() && data.child('meta/lastActive').val() < now - 86400000 && !newData.exists()",
         "meta": {
           ".read": "auth != null",
-          ".write": "auth != null && (
-            (!data.exists()
-              && newData.child('hostUid').val() === auth.uid
-              && newData.child('createdAt').val() === now
-              && newData.child('lastActive').val() === now
-              && newData.child('status').val() === 'lobby')
-            || (data.child('lastActive').val() > now - 86400000
-              && data.child('hostUid').val() === auth.uid
-              && newData.child('hostUid').val() === data.child('hostUid').val()
-              && newData.child('createdAt').val() === data.child('createdAt').val()
-              && (newData.child('lastActive').val() === now || newData.child('lastActive').val() === data.child('lastActive').val()))
-            || (data.child('lastActive').val() > now - 86400000
-              && data.child('hostUid').val() === auth.uid
-              && data.child('nextHost').val() !== null
-              && newData.child('hostUid').val() === data.child('nextHost').val()
-              && newData.child('createdAt').val() === data.child('createdAt').val())
-            || (data.child('lastActive').val() > now - 86400000
-              && data.child('nextHost').val() === auth.uid
-              && newData.child('hostUid').val() === auth.uid
-              && newData.child('createdAt').val() === data.child('createdAt').val())
-          )"
+          ".write": "auth != null && ( (!data.exists() && newData.child('hostUid').val() === auth.uid && newData.child('createdAt').val() === now && newData.child('lastActive').val() === now && newData.child('status').val() === 'lobby') || (data.child('lastActive').val() > now - 86400000 && data.child('hostUid').val() === auth.uid && newData.child('hostUid').val() === data.child('hostUid').val() && newData.child('createdAt').val() === data.child('createdAt').val() && (newData.child('lastActive').val() === now || newData.child('lastActive').val() === data.child('lastActive').val())) || (data.child('lastActive').val() > now - 86400000 && data.child('hostUid').val() === auth.uid && data.child('nextHost').val() !== null && newData.child('hostUid').val() === data.child('nextHost').val() && newData.child('createdAt').val() === data.child('createdAt').val()) || (data.child('lastActive').val() > now - 86400000 && data.child('nextHost').val() === auth.uid && newData.child('hostUid').val() === auth.uid && newData.child('createdAt').val() === data.child('createdAt').val()) )"
         },
         "seats": {
           ".read": "auth != null",
           ".write": "auth != null && root.child('rooms').child($code).child('meta').child('hostUid').val() === auth.uid && root.child('rooms').child($code).child('meta').child('lastActive').val() > now - 86400000",
           "$seat": {
-            ".write": "auth != null && ($seat === '0' || $seat === '1' || $seat === '2' || $seat === '3') && root.child('rooms').child($code).child('meta').child('lastActive').val() > now - 86400000 && (
-              root.child('rooms').child($code).child('meta').child('hostUid').val() === auth.uid
-              || (data.child('uid').val() === auth.uid
-                && newData.child('uid').val() === auth.uid
-                && newData.child('bot').val() === data.child('bot').val())
-              || (root.child('rooms').child($code).child('meta').child('status').val() === 'lobby'
-                && data.child('bot').val() !== true
-                && data.child('uid').val() === null
-                && newData.child('uid').val() === auth.uid
-                && newData.child('bot').val() === false)
-              || (root.child('rooms').child($code).child('meta').child('status').val() === 'lobby'
-                && data.child('uid').val() === auth.uid
-                && newData.child('uid').val() === null
-                && newData.child('bot').val() === false)
-            )"
+            ".write": "auth != null && ($seat === '0' || $seat === '1' || $seat === '2' || $seat === '3') && root.child('rooms').child($code).child('meta').child('lastActive').val() > now - 86400000 && ( root.child('rooms').child($code).child('meta').child('hostUid').val() === auth.uid || (data.child('uid').val() === auth.uid && newData.child('uid').val() === auth.uid && newData.child('bot').val() === data.child('bot').val()) || (root.child('rooms').child($code).child('meta').child('status').val() === 'lobby' && data.child('bot').val() !== true && data.child('uid').val() === null && newData.child('uid').val() === auth.uid && newData.child('bot').val() === false) || (root.child('rooms').child($code).child('meta').child('status').val() === 'lobby' && data.child('uid').val() === auth.uid && newData.child('uid').val() === null && newData.child('bot').val() === false) )"
           }
         },
         "public": {
@@ -66,13 +32,7 @@
         "intents": {
           "$seat": {
             ".read": "auth != null && root.child('rooms').child($code).child('meta').child('hostUid').val() === auth.uid",
-            ".write": "auth != null && ($seat === '0' || $seat === '1' || $seat === '2' || $seat === '3') && (
-              (root.child('rooms').child($code).child('meta').child('hostUid').val() === auth.uid && !newData.exists())
-              || (newData.child('uid').val() === auth.uid
-                && newData.child('seat').val() + '' === $seat
-                && root.child('rooms').child($code).child('seats').child($seat).child('uid').val() === auth.uid
-                && root.child('rooms').child($code).child('meta').child('lastActive').val() > now - 86400000)
-            )"
+            ".write": "auth != null && ($seat === '0' || $seat === '1' || $seat === '2' || $seat === '3') && ( (root.child('rooms').child($code).child('meta').child('hostUid').val() === auth.uid && !newData.exists()) || (newData.child('uid').val() === auth.uid && newData.child('seat').val() + '' === $seat && root.child('rooms').child($code).child('seats').child($seat).child('uid').val() === auth.uid && root.child('rooms').child($code).child('meta').child('lastActive').val() > now - 86400000) )"
           }
         }
       }
