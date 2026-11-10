@@ -52,6 +52,8 @@ export interface Settings {
   base: number;
   per: number;
   anim: "normal" | "fast" | "off";
+  /** 按開始時重抽四個座位。沒寫進房間時視為開。 */
+  shuffle?: boolean;
 }
 export interface RoomMeta {
   createdAt: number;
@@ -190,13 +192,46 @@ export function lobbyState(meta: RoomMeta, seats: Seat[]): HostState {
   };
 }
 
-export function beginMatch(state: HostState, rng: Rng, now: number): HostState {
-  const seats = state.seats.map((s) => {
+/** 沒有明確關掉時，開始牌局會重抽座位。 */
+export function shuffleSeatsOn(settings: Pick<Settings, "shuffle"> | null | undefined): boolean {
+  return settings?.shuffle !== false;
+}
+
+/** 空位補成電腦。shuffle 為真時，再用同一個 rng 把四個座位整組打亂。 */
+export function arrangeSeats(seats: Seat[], rng: Rng, shuffle: boolean): Seat[] {
+  const filled = seats.map((s) => {
     if (s.uid && !s.bot) return { ...s, auto: false };
     return { uid: null, name: "電腦", bot: true, connected: true, auto: false };
   });
+  if (!shuffle) return filled;
+  for (let i = filled.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    const tmp = filled[i];
+    filled[i] = filled[j];
+    filled[j] = tmp;
+  }
+  return filled;
+}
+
+/**
+ * 牌局進行中，座位以房主剛排好的為準，只按 uid 同步連線與託管。
+ * 大廳則直接採用線上座位。
+ */
+export function mergeLiveSeats(current: Seat[], live: Seat[], playing: boolean): Seat[] {
+  if (!playing) return live.map((s) => ({ ...s }));
+  return current.map((s) => {
+    if (!s.uid || s.bot) return { ...s, connected: true };
+    const found = live.find((r) => r.uid === s.uid);
+    if (!found) return s;
+    return { ...s, connected: found.connected, auto: found.auto, name: found.name || s.name };
+  });
+}
+
+export function beginMatch(state: HostState, rng: Rng, now: number): HostState {
+  const shuffle = shuffleSeatsOn(state.meta.settings);
+  const seats = arrangeSeats(state.seats, rng, shuffle);
   const match = newMatch(state.meta.settings.len, rng);
-  return startHand({
+  const started = startHand({
     ...state,
     seats,
     match,
@@ -207,6 +242,8 @@ export function beginMatch(state: HostState, rng: Rng, now: number): HostState {
     robs: blankRobs(),
     meta: { ...state.meta, status: "playing" },
   }, rng, now);
+  if (shuffle && started.game) started.game.log.push("座位已隨機排好。");
+  return started;
 }
 export function startHand(state: HostState, rng: Rng, now: number): HostState {
   if (!state.match) return state;

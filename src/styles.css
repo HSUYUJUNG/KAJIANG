@@ -125,6 +125,10 @@ input, select {
   font-size: 16px;
 }
 .seg { display: flex; flex-wrap: wrap; gap: 6px; }
+.toggle-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+}
+.toggle-row .btn { min-width: 64px; min-height: 44px; }
 .code {
   font-size: 32px; letter-spacing: 0.28em; font-weight: 700; text-align: center; margin: 4px 0;
 }
