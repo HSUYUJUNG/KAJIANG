@@ -129,13 +129,14 @@ export function TileBack(props: { w?: number }) {
 }
 
 export function MeldRow(props: { melds: Meld[]; size: number; hide?: number; seat?: number }) {
-  if (props.melds.length === 0) return null;
+  const melds = Array.isArray(props.melds) ? props.melds : [];
+  if (melds.length === 0) return null;
   return (
     <div className="melds">
-      {props.melds.map((m, i) => (
+      {melds.map((m, i) => (
         <div key={i} className="meld" data-ml={`${props.seat ?? -1}-${i}`} style={{ visibility: props.hide === i ? "hidden" : "visible" }}>
           <div className="meld-tiles">
-            {m.tiles.map((t, j) => <Tile key={j} t={t} size={props.size} back={t < 0} />)}
+            {(Array.isArray(m.tiles) ? m.tiles : []).map((t, j) => <Tile key={j} t={t} size={props.size} back={t < 0} />)}
           </div>
           <span>{m.kind === "chi" ? "吃" : m.kind === "pon" ? "碰" : m.kind === "ankan" ? "暗槓" : "槓"}</span>
         </div>

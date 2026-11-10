@@ -34,6 +34,7 @@ import {
   type Rng,
   type Settlement,
 } from "../logic/engine";
+import { normalizeAnswers, normalizeGame, normalizeMatch, normalizeRobs, normalizeSettlement } from "./wire";
 
 export const ROOM_TTL_MS = 24 * 60 * 60 * 1000;
 export const DISCONNECT_GRACE_MS = 4000;
@@ -402,12 +403,12 @@ export function stateFromSecret(meta: RoomMeta, seats: Seat[], secret: SecretSta
   return {
     meta,
     seats,
-    game: secret.game,
-    match: secret.match,
-    settlement: secret.settlement,
-    deadline: secret.deadline,
-    answers: secret.answers?.length === 4 ? secret.answers : blankAnswers(),
-    robs: secret.robs?.length === 4 ? secret.robs : blankRobs(),
+    game: normalizeGame(secret.game),
+    match: normalizeMatch(secret.match),
+    settlement: normalizeSettlement(secret.settlement),
+    deadline: secret.deadline ?? null,
+    answers: normalizeAnswers(secret.answers),
+    robs: normalizeRobs(secret.robs),
   };
 }
 

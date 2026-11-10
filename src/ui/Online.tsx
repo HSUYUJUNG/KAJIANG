@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { get, onValue, remove } from "firebase/database";
 import { mulberry, projectPublic, type HandPrivate, type PublicView, type Settlement } from "../logic/engine";
 import { ensureUser, knownRooms, roomRef, shareUrl } from "../net/firebase";
+import { normalizeHand, normalizePublic } from "../net/wire";
 import {
   applyHuman,
   beginMatch,
@@ -89,7 +90,7 @@ export function Online(props: { code: string; name: string; onHome: () => void }
       seatsRef.current = parsed;
       setSeats(parsed);
     }, errs);
-    const u3 = onValue(roomRef(code, "public"), (s) => setPub(s.val()), errs);
+    const u3 = onValue(roomRef(code, "public"), (s) => setPub(normalizePublic(s.val())), errs);
     return () => { u1(); u2(); u3(); };
   }, [uid, code]);
 
@@ -98,7 +99,7 @@ export function Online(props: { code: string; name: string; onHome: () => void }
 
   useEffect(() => {
     if (!uid || mySeat < 0) return;
-    const unsub = onValue(roomRef(code, `hands/${mySeat}`), (s) => setHandTiles(s.val()));
+    const unsub = onValue(roomRef(code, `hands/${mySeat}`), (s) => setHandTiles(normalizeHand(s.val())));
     let stop = () => undefined as void;
     void bindSeatPresence(code, mySeat).then((fn) => { stop = fn; }).catch(() => undefined);
     return () => { unsub(); stop(); };

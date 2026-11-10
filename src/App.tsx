@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { createRoom } from "./net/rooms";
 import { defaultSettings, saveName, savedName } from "./net/firebase";
 import type { Settings } from "./net/host";
+import { GameBoundary } from "./ui/ErrorBoundary";
 import { LobbyPreview, Online } from "./ui/Online";
 import { Practice } from "./ui/Practice";
 
@@ -85,6 +86,7 @@ export function App() {
           {theme === "light" ? "淺色" : theme === "dark" ? "深色" : "自動"}
         </button>
       </header>
+      <GameBoundary key={`${screen}:${code}`} onHome={goHome}>
       {screen === "preview" ? <LobbyPreview /> : null}
       {screen === "practice" ? <Practice demo={new URLSearchParams(location.search).get("demo") === "1"} onHome={goHome} /> : null}
       {screen === "room" ? <Online code={code} name={nick || "玩家"} onHome={goHome} /> : null}
@@ -120,6 +122,7 @@ export function App() {
           <Rules />
         </div>
       ) : null}
+      </GameBoundary>
     </div>
   );
 }

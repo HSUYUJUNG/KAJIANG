@@ -76,7 +76,8 @@ function useFly(ev: Ev[], speed: "normal" | "fast" | "off") {
   const [fly, setFly] = useState(false);
   const seen = useRef(0);
   useEffect(() => {
-    const fresh = ev.filter((e) => e.n > seen.current);
+    const list = Array.isArray(ev) ? ev : [];
+    const fresh = list.filter((e) => e.n > seen.current);
     if (fresh.length === 0) return;
     seen.current = fresh[fresh.length - 1].n;
     if (speed === "off") return;
@@ -98,6 +99,48 @@ function useFly(ev: Ev[], speed: "normal" | "fast" | "off") {
   return { cur, fly, blocking, reset };
 }
 
+function readyModel(raw: TableModel): TableModel {
+  const players = (Array.isArray(raw.players) ? raw.players : []).map((p) => ({
+    handCount: p?.handCount ?? 0,
+    melds: (Array.isArray(p?.melds) ? p.melds : []).map((meld) => ({
+      ...meld,
+      tiles: Array.isArray(meld?.tiles) ? meld.tiles : [],
+    })),
+    discards: Array.isArray(p?.discards) ? p.discards : [],
+    revealed: Array.isArray(p?.revealed) ? p.revealed : null,
+  }));
+  while (players.length < 4) players.push({ handCount: 0, melds: [], discards: [], revealed: null });
+  const prompt = raw.prompt;
+  const safePrompt: Prompt | null = !prompt ? null
+    : prompt.kind === "turn"
+      ? { ...prompt, kans: Array.isArray(prompt.kans) ? prompt.kans : [], drawn: prompt.drawn ?? null }
+      : prompt.kind === "claim"
+        ? {
+          ...prompt,
+          options: {
+            ron: !!prompt.options?.ron,
+            pon: !!prompt.options?.pon,
+            kan: !!prompt.options?.kan,
+            chi: (Array.isArray(prompt.options?.chi) ? prompt.options.chi : []).map((row) => (Array.isArray(row) ? row : [])),
+          },
+        }
+        : prompt;
+  return {
+    ...raw,
+    names: Array.isArray(raw.names) ? raw.names : [],
+    scores: Array.isArray(raw.scores) ? raw.scores : [],
+    players,
+    myHand: Array.isArray(raw.myHand) ? raw.myHand : [],
+    myMelds: (Array.isArray(raw.myMelds) ? raw.myMelds : []).map((meld) => ({
+      ...meld,
+      tiles: Array.isArray(meld?.tiles) ? meld.tiles : [],
+    })),
+    log: Array.isArray(raw.log) ? raw.log : [],
+    ev: (Array.isArray(raw.ev) ? raw.ev : []).map((e) => ({ ...e, tiles: Array.isArray(e?.tiles) ? e.tiles : [] })),
+    prompt: safePrompt,
+  };
+}
+
 export function TableView(props: {
   model: TableModel;
   anim: "normal" | "fast" | "off";
@@ -107,7 +150,7 @@ export function TableView(props: {
   stake?: { base: number; per: number };
   settlement?: Settlement | null;
 }) {
-  const { model: m } = props;
+  const m = readyModel(props.model);
   const { ref, w } = useWidth(m.phase + m.myHand.length);
   const anim = useFly(m.ev, props.anim);
   const narrow = w < 520;
@@ -186,7 +229,7 @@ export function TableView(props: {
         <ResultCard model={m} settlement={props.settlement} stake={props.stake} />
       ) : null}
       {props.footer}
-      <div className="muted" style={{ marginTop: 8 }}>{m.log.slice(-3).map((l, i) => <div key={i}>{l}</div>)}</div>
+      <div className="muted" style={{ marginTop: 8 }}>{(m.log ?? []).slice(-3).map((l, i) => <div key={i}>{l}</div>)}</div>
     </div>
   );
 }
@@ -204,9 +247,9 @@ function actionButtons(m: TableModel, blocking: boolean, selTile: number | null,
   if (blocking || !onAction || !m.prompt) return null;
   const p = m.prompt;
   const nodes: ReactNode[] = [];
-  if (p.kind === "turn") {
+    if (p.kind === "turn") {
     if (p.canTsumo) nodes.push(<button key="ts" className="big primary" onClick={() => onAction({ type: "tsumo" })}>自摸</button>);
-    for (const k of p.kans) nodes.push(
+    for (const k of p.kans ?? []) nodes.push(
       <button key={k.kind + k.tile} className="big" onClick={() => onAction({ type: "kan", tile: k.tile, kanKind: k.kind })}>
         {k.kind === "ankan" ? "暗槓" : "加槓"}<Tile t={k.tile} size={22} />
       </button>,
@@ -217,14 +260,15 @@ function actionButtons(m: TableModel, blocking: boolean, selTile: number | null,
       </button>,
     );
   } else if (p.kind === "claim") {
-    const o = p.options;
+    const o = p.options ?? { ron: false, pon: false, kan: false, chi: [] as number[][] };
     if (o.ron) nodes.push(<button key="ron" className="big primary" onClick={() => onAction({ type: "claim", kind: "ron" })}>胡<Tile t={p.tile} size={22} /></button>);
     if (o.kan) nodes.push(<button key="kan" className="big" onClick={() => onAction({ type: "claim", kind: "kan" })}>槓<Tile t={p.tile} size={22} /></button>);
     if (o.pon) nodes.push(<button key="pon" className="big" onClick={() => onAction({ type: "claim", kind: "pon" })}>碰<Tile t={p.tile} size={22} /></button>);
-    if (o.chi.length) nodes.push(
+    const chi = Array.isArray(o.chi) ? o.chi : [];
+    if (chi.length) nodes.push(
       <span key="chi" className="row">
         <b>吃</b>
-        {o.chi.map((ch) => (
+        {chi.map((ch) => (
           <button key={ch.join()} className="big" onClick={() => onAction({ type: "claim", kind: "chi", tiles: ch })}>
             {ch.map((t) => <Tile key={t} t={t} size={22} mark={t === p.tile ? "drawn" : undefined} />)}
           </button>
@@ -257,7 +301,7 @@ function SeatLine(props: { model: TableModel; seat: number; plain?: boolean }) {
 }
 
 function Opp(props: { model: TableModel; seat: number; place: string; meldSize: number; hide: number }) {
-  const pl = props.model.players[props.seat];
+  const pl = props.model.players[props.seat] ?? { handCount: 0, melds: [], discards: [], revealed: null };
   const reveal = props.model.reveal;
   const on = props.model.phase !== "end" && props.model.turn === props.seat;
   return (
@@ -275,7 +319,7 @@ function Opp(props: { model: TableModel; seat: number; place: string; meldSize: 
 }
 
 function River(props: { model: TableModel; seat: number; size: number; align: "start" | "center" | "end"; hide: number }) {
-  const ds = props.model.players[props.seat].discards;
+  const ds = props.model.players[props.seat]?.discards ?? [];
   return (
     <div className={"river " + (props.align === "center" ? "center" : props.align === "end" ? "end" : "start")} data-rv={props.seat}>
       <div className="river-cap">{props.model.names[props.seat]}打出</div>
@@ -293,10 +337,10 @@ function River(props: { model: TableModel; seat: number; size: number; align: "s
 function Fly(props: { ev: Ev; fly: boolean; narrow: boolean; me: number; myMelds: Meld[] }) {
   const e = props.ev;
   const word = e.kind === "chi" ? "吃" : e.kind === "pon" ? "碰" : e.kind === "kan" ? "槓" : e.kind === "ankan" ? "暗槓" : e.kind === "added" ? "加槓" : e.kind === "ron" ? "胡" : e.kind === "tsumo" ? "自摸" : e.kind === "rob" ? "搶槓胡" : "";
-  let tiles = e.tiles;
+  let tiles = Array.isArray(e.tiles) ? e.tiles : [];
   if (e.kind === "ankan" && e.p === props.me) {
     const mine = props.myMelds.find((m) => m.kind === "ankan");
-    if (mine) tiles = mine.tiles;
+    if (mine && Array.isArray(mine.tiles)) tiles = mine.tiles;
   }
   const size = e.kind === "discard" ? (props.narrow ? 44 : 56) : (props.narrow ? 30 : 40);
   return (
@@ -320,13 +364,13 @@ export function ResultCard(props: { model: TableModel; settlement: Settlement; s
   const names = props.model.names;
   return (
     <div className="banner">
-      {s.payments.length === 0 ? <div>流局。保留的 16 張不再摸，不計分。連莊最多 3 次。</div> : (
+      {(s.payments ?? []).length === 0 ? <div>流局。保留的 16 張不再摸，不計分。連莊最多 3 次。</div> : (
         <>
-          <div>{s.items.map((it) => `${it.name} ${it.tai}`).join("、") || "胡牌"}{s.handTai ? `，合計 ${s.handTai} 台` : ""}</div>
+          <div>{(s.items ?? []).map((it) => `${it.name} ${it.tai}`).join("、") || "胡牌"}{s.handTai ? `，合計 ${s.handTai} 台` : ""}</div>
           <table>
             <thead><tr><th>付 → 收</th><th className="num">金額</th></tr></thead>
             <tbody>
-              {s.payments.map((p, i) => (
+              {(s.payments ?? []).map((p, i) => (
                 <tr key={i}>
                   <td>{names[p.from]} → {names[p.to]}{p.dealerTai ? `（莊${p.dealerTai}）` : ""}{p.minTai ? "（最低 1 台）" : ""}</td>
                   <td className="num">{p.amount}</td>
@@ -334,7 +378,7 @@ export function ResultCard(props: { model: TableModel; settlement: Settlement; s
               ))}
             </tbody>
           </table>
-          <div className="muted">底 {props.stake.base}／每台 {props.stake.per}。{s.deltas.map((d, i) => (d ? `${names[i]} ${money(d)}` : "")).filter(Boolean).join("，")}</div>
+          <div className="muted">底 {props.stake.base}／每台 {props.stake.per}。{(s.deltas ?? []).map((d, i) => (d ? `${names[i]} ${money(d)}` : "")).filter(Boolean).join("，")}</div>
         </>
       )}
     </div>
