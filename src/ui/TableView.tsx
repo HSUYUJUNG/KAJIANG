@@ -71,17 +71,30 @@ function useWidth(dep: unknown) {
   return { ref, w };
 }
 
+/** 每一局的事件編號都從 1 重新計。已看過的編號若比這次更大，代表換局了。 */
+export function nextFlyEvents<T extends { n: number }>(ev: T[] | null | undefined, seen: number): { fresh: T[]; seen: number; restarted: boolean } {
+  const list = Array.isArray(ev) ? ev : [];
+  const maxN = list.reduce((max, e) => Math.max(max, Number(e?.n) || 0), 0);
+  const restarted = maxN < seen;
+  const mark = restarted ? 0 : seen;
+  const fresh = list.filter((e) => (Number(e?.n) || 0) > mark);
+  return { fresh, seen: fresh.length > 0 ? fresh[fresh.length - 1].n : mark, restarted };
+}
+
 function useFly(ev: Ev[], speed: "normal" | "fast" | "off") {
   const [queue, setQueue] = useState<Ev[]>([]);
   const [fly, setFly] = useState(false);
   const seen = useRef(0);
   useEffect(() => {
-    const list = Array.isArray(ev) ? ev : [];
-    const fresh = list.filter((e) => e.n > seen.current);
-    if (fresh.length === 0) return;
-    seen.current = fresh[fresh.length - 1].n;
-    if (speed === "off") return;
-    setQueue((q) => [...q, ...fresh]);
+    const step = nextFlyEvents(ev, seen.current);
+    seen.current = step.seen;
+    if (step.restarted) {
+      setFly(false);
+      setQueue(speed === "off" ? [] : step.fresh);
+      return;
+    }
+    if (step.fresh.length === 0 || speed === "off") return;
+    setQueue((q) => [...q, ...step.fresh]);
   }, [ev, speed]);
   const cur = queue[0] ?? null;
   useEffect(() => {
