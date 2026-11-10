@@ -86,13 +86,15 @@ export async function sendIntent(code: string, intent: Intent): Promise<void> {
   await set(roomRef(code, `intents/${intent.seat}`), clean(intent));
 }
 
-export async function bindSeatPresence(code: string, seat: number): Promise<() => void> {
+/** markOffline 為假時只取消斷線回呼，避免換座後把新坐在原位的人標成離線。 */
+export async function bindSeatPresence(code: string, seat: number): Promise<(markOffline: boolean) => void> {
   const connected = roomRef(code, `seats/${seat}/connected`);
-  await onDisconnect(connected).set(false);
+  const disc = onDisconnect(connected);
+  await disc.set(false);
   await set(connected, true);
-  return () => {
-    void onDisconnect(connected).cancel();
-    void set(connected, false);
+  return (markOffline: boolean) => {
+    void disc.cancel();
+    if (markOffline) void set(connected, false);
   };
 }
 

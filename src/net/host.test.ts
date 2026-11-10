@@ -7,6 +7,7 @@ import {
   handsOf,
   illusion,
   lobbyState,
+  mergeLiveSeats,
   nextHand,
   suggestFromPrivate,
   suggestIntent,
@@ -26,7 +27,7 @@ function meta(): RoomMeta {
     status: "lobby",
     hostOnline: true,
     nextHost: null,
-    settings: { len: "quan", base: 50, per: 20, anim: "off" },
+    settings: { len: "quan", base: 50, per: 20, anim: "off", shuffle: false },
   };
 }
 function seats(): Seat[] {
@@ -135,5 +136,62 @@ describe("兩人加兩電腦", () => {
       const next = applyHuman(state, intent!, 9_000, [0, 0, 0, 0]);
       expect(next === state || next.game !== state.game).toBe(true);
     }
+  });
+});
+
+describe("隨機排座", () => {
+  function four(): Seat[] {
+    return ["春", "夏", "秋", "冬"].map((name) => ({
+      uid: name, name, bot: false, connected: true, auto: false,
+    }));
+  }
+
+  it("開啟時重抽座位，手牌跟著 uid，莊家仍是隨機座位", () => {
+    const base = meta();
+    delete base.settings.shuffle;
+    const before = four().map((s) => s.uid);
+    let moved = false;
+    for (let seed = 1; seed < 40 && !moved; seed++) {
+      const state = beginMatch(lobbyState(base, four()), mulberry(seed), 1);
+      const ids = state.seats.map((s) => s.uid);
+      expect(new Set(ids)).toEqual(new Set(before));
+      expect(state.game?.log.some((line) => line.includes("座位已隨機排好"))).toBe(true);
+      expect(state.match?.dealer).toBeGreaterThanOrEqual(0);
+      expect(state.match?.dealer).toBeLessThan(4);
+      const hands = handsOf(state);
+      ids.forEach((uid, i) => {
+        expect(state.seats[i].uid).toBe(uid);
+        expect(hands[i]?.tiles).toEqual(state.game?.players[i].hand);
+      });
+      const again = beginMatch(lobbyState(base, four()), mulberry(seed), 1).seats.map((s) => s.uid);
+      expect(again).toEqual(ids);
+      if (ids.some((uid, i) => uid !== before[i])) moved = true;
+    }
+    expect(moved).toBe(true);
+  });
+
+  it("關閉時留在原本的座位，也不寫進紀錄", () => {
+    const base = meta();
+    base.settings.shuffle = false;
+    const state = beginMatch(lobbyState(base, seats()), mulberry(4), 1);
+    expect(state.seats.map((s) => s.uid)).toEqual(["alice", "bob", null, null]);
+    expect(state.seats[2].bot).toBe(true);
+    expect(state.game?.log.join("")).not.toContain("座位已隨機排好");
+  });
+
+  it("開局後同步連線狀態時不會把人搬回舊位子", () => {
+    const shuffled: Seat[] = [
+      { uid: "bob", name: "夏", bot: false, connected: true, auto: false },
+      { uid: null, name: "電腦", bot: true, connected: true, auto: false },
+      { uid: "alice", name: "春", bot: false, connected: true, auto: false },
+      { uid: null, name: "電腦", bot: true, connected: true, auto: false },
+    ];
+    const stale = seats();
+    stale[0] = { ...stale[0], connected: false };
+    const merged = mergeLiveSeats(shuffled, stale, true);
+    expect(merged.map((s) => s.uid)).toEqual(["bob", null, "alice", null]);
+    expect(merged[2].connected).toBe(false);
+    expect(merged[2].name).toBe("春");
+    expect(merged[1].bot).toBe(true);
   });
 });

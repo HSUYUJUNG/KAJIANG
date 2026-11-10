@@ -8,10 +8,12 @@ import {
   beginMatch,
   handsOf,
   lobbyState,
+  mergeLiveSeats,
   nextHand,
   paceMs,
   roomExpired,
   seatName,
+  shuffleSeatsOn,
   stateFromSecret,
   tick,
   type HostState,
@@ -99,10 +101,19 @@ export function Online(props: { code: string; name: string; onHome: () => void }
 
   useEffect(() => {
     if (!uid || mySeat < 0) return;
-    const unsub = onValue(roomRef(code, `hands/${mySeat}`), (s) => setHandTiles(normalizeHand(s.val())));
-    let stop = () => undefined as void;
-    void bindSeatPresence(code, mySeat).then((fn) => { stop = fn; }).catch(() => undefined);
-    return () => { unsub(); stop(); };
+    const seat = mySeat;
+    const unsub = onValue(roomRef(code, `hands/${seat}`), (s) => setHandTiles(normalizeHand(s.val())), () => undefined);
+    let cancelled = false;
+    let release = (_markOffline: boolean) => undefined as void;
+    void bindSeatPresence(code, seat).then((fn) => {
+      if (cancelled) fn(seatsRef.current[seat]?.uid === uid);
+      else release = fn;
+    }).catch(() => undefined);
+    return () => {
+      cancelled = true;
+      unsub();
+      release(seatsRef.current[seat]?.uid === uid);
+    };
   }, [uid, code, mySeat]);
 
   useEffect(() => {
@@ -122,19 +133,16 @@ export function Online(props: { code: string; name: string; onHome: () => void }
         const cur = stateRef.current;
         if (stop || !cur) return;
         const live = seatsRef.current;
-        const seats = cur.game
-          ? cur.seats.map((s, i) => {
-            const r = live[i];
-            if (!r) return s;
-            if (s.bot && !r.uid) return { ...s, connected: true };
-            return { ...s, connected: r.connected, auto: r.auto, name: r.name || s.name, uid: r.uid };
-          })
-          : live.map((s) => ({ ...s }));
+        const seats = mergeLiveSeats(cur.seats, live, !!cur.game);
         const base = { ...cur, seats };
         const next = fn(base);
         if (next === base) return;
         stateRef.current = next;
         setHostSnap(next);
+        if (writeSeats) {
+          seatsRef.current = next.seats;
+          setSeats(next.seats);
+        }
         await publishState(code, next, writeSeats);
       }).catch((e: Error) => setErr(e.message || "同步失敗"));
     };
@@ -411,6 +419,17 @@ function Lobby(props: {
             </div>
           </div>
         ))}
+      </div>
+      <div className="toggle-row">
+        <div>
+          <b>隨機排座</b>
+          <div className="muted">按開始時重新抽座位</div>
+        </div>
+        {props.host ? (
+          <button type="button" className="btn" aria-pressed={shuffleSeatsOn(props.settings)} aria-label="隨機排座" onClick={() => props.onSettings({ ...props.settings, shuffle: !shuffleSeatsOn(props.settings) })}>
+            {shuffleSeatsOn(props.settings) ? "開" : "關"}
+          </button>
+        ) : <span className="muted">{shuffleSeatsOn(props.settings) ? "開" : "關"}</span>}
       </div>
       {props.host ? (
         <>
