@@ -168,6 +168,14 @@ input, select {
   background: linear-gradient(180deg, #f8f1e4 0%, #e4d2b0 100%);
   box-shadow: 0 1px 1px rgba(0, 0, 0, 0.06);
 }
+.tile.look-d {
+  border-radius: 11%;
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.1), 0 3px 5px rgba(0, 0, 0, 0.14);
+}
+.tile.look-d.edge-green { background: linear-gradient(180deg, #9ed8b4 0%, #1f8f4d 46%, #146636 100%); }
+.tile.look-d.edge-blue { background: linear-gradient(180deg, #9ec0ee 0%, #2a6fbe 46%, #1a4c8a 100%); }
+.tile.look-d.edge-pink { background: linear-gradient(180deg, #f6b3c8 0%, #e25a8c 46%, #b43768 100%); }
+.tile.look-d.edge-yellow { background: linear-gradient(180deg, #f6e29a 0%, #e0b000 46%, #b48a00 100%); }
 .tile-face {
   display: block;
   flex: 1 1 auto;
@@ -179,6 +187,7 @@ input, select {
 .look-a .tile-face { margin-bottom: 12%; border-radius: 12% 12% 16% 16%; }
 .look-b .tile-face { margin-bottom: 16%; border-radius: 16%; background: #fff; }
 .look-c .tile-face { margin-bottom: 8%; border-radius: 7%; background: #f7f1e4; }
+.look-d .tile-face { margin-bottom: 14%; border-radius: 10% 10% 6% 6%; background: #fff; }
 .tile-face svg { display: block; width: 100%; height: 100%; }
 .tile.back {
   background: linear-gradient(180deg, #3aa37a 0%, #2e7d5b 72%, #1b5c40 100%);
