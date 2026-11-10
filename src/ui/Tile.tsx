@@ -33,7 +33,7 @@ function stick(key: string, cx: number, cy: number, h: number, c: string, rot?: 
 
 export function tileFace(t: number) {
   const n = (t % 9) + 1;
-  const font = '"Noto Sans TC","Songti TC",serif';
+  const font = 'system-ui, "PingFang TC", "Noto Sans CJK TC", sans-serif';
   if (t >= 27) {
     if (t === 33) return <rect x={6.5} y={8} width={17} height={26} rx={1.5} fill="none" stroke={BLUE} strokeWidth={2.2} />;
     const c = t === 31 ? RED : t === 32 ? GREEN : INK;
