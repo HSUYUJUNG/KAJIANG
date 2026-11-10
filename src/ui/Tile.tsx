@@ -1,12 +1,12 @@
 import { tileName, type Meld } from "../logic/engine";
 
-const INK = "#1B1B1B";
-const RED = "#C62828";
-const GREEN = "#1E7A3E";
-const BLUE = "#1F4F9E";
-const IVORY = "#F8F4E8";
+const INK = "#161616";
+const RED = "#E10600";
+const GREEN = "#0E8A32";
+const BLUE = "#1554D6";
 const NUMS = ["一", "二", "三", "四", "五", "六", "七", "八", "九"];
 const HONORS = ["東", "南", "西", "北", "中", "發", "白"];
+const FONT = 'system-ui, "PingFang TC", "Noto Sans CJK TC", sans-serif';
 
 function suitOf(t: number): number {
   return t < 27 ? Math.floor(t / 9) : 3;
@@ -16,35 +16,34 @@ function dot(key: string, cx: number, cy: number, r: number, c: string) {
   return (
     <g key={key}>
       <circle cx={cx} cy={cy} r={r} fill={c} />
-      <circle cx={cx} cy={cy} r={r * 0.62} fill="none" stroke={IVORY} strokeWidth={r * 0.2} />
-      <circle cx={cx} cy={cy} r={r * 0.22} fill={IVORY} />
+      <circle cx={cx} cy={cy} r={r * 0.58} fill="none" stroke="#fff" strokeWidth={Math.max(0.8, r * 0.2)} />
+      <circle cx={cx} cy={cy} r={r * 0.16} fill="#fff" />
     </g>
   );
 }
 function stick(key: string, cx: number, cy: number, h: number, c: string, rot?: number) {
+  const w = 5;
   return (
     <g key={key} transform={rot ? `rotate(${rot} ${cx} ${cy})` : undefined}>
-      <rect x={cx - 2.1} y={cy - h / 2} width={4.2} height={h} rx={2} fill={c} />
-      <line x1={cx - 2.1} x2={cx + 2.1} y1={cy} y2={cy} stroke={IVORY} strokeWidth={0.9} />
-      <line x1={cx} x2={cx} y1={cy - h / 2 + 1.5} y2={cy + h / 2 - 1.5} stroke={IVORY} strokeWidth={0.5} opacity={0.6} />
+      <rect x={cx - w / 2} y={cy - h / 2} width={w} height={h} rx={w / 2} fill={c} />
+      <rect x={cx - 0.7} y={cy - h / 2 + 1.4} width={1.5} height={Math.max(1, h - 2.8)} rx={0.7} fill="#fff" opacity={0.55} />
     </g>
   );
 }
 
 export function tileFace(t: number) {
   const n = (t % 9) + 1;
-  const font = 'system-ui, "PingFang TC", "Noto Sans CJK TC", sans-serif';
   if (t >= 27) {
-    if (t === 33) return <rect x={6.5} y={8} width={17} height={26} rx={1.5} fill="none" stroke={BLUE} strokeWidth={2.2} />;
+    if (t === 33) return <rect x={6.5} y={7} width={17} height={28} rx={2.5} fill="none" stroke={BLUE} strokeWidth={2.6} />;
     const c = t === 31 ? RED : t === 32 ? GREEN : INK;
-    return <text x={15} y={29.5} textAnchor="middle" fontSize={22} fontWeight={700} fill={c} fontFamily={font}>{HONORS[t - 27]}</text>;
+    return <text x={15} y={29} textAnchor="middle" fontSize={22} fontWeight={800} fill={c} fontFamily={FONT}>{HONORS[t - 27]}</text>;
   }
   const s = suitOf(t);
   if (s === 0) {
     return (
       <>
-        <text x={15} y={17} textAnchor="middle" fontSize={14} fontWeight={700} fill={INK} fontFamily={font}>{NUMS[n - 1]}</text>
-        <text x={15} y={36} textAnchor="middle" fontSize={15} fontWeight={700} fill={RED} fontFamily={font}>萬</text>
+        <text x={15} y={16} textAnchor="middle" fontSize={15} fontWeight={800} fill={INK} fontFamily={FONT}>{NUMS[n - 1]}</text>
+        <text x={15} y={34} textAnchor="middle" fontSize={16} fontWeight={800} fill={RED} fontFamily={FONT}>萬</text>
       </>
     );
   }
@@ -53,11 +52,10 @@ export function tileFace(t: number) {
     if (n === 1) {
       return (
         <g>
-          <circle cx={15} cy={21} r={12.5} fill="none" stroke={BLUE} strokeWidth={2.4} />
-          <circle cx={15} cy={21} r={9.2} fill={GREEN} />
-          <circle cx={15} cy={21} r={6.2} fill="none" stroke={IVORY} strokeWidth={1.2} />
-          <circle cx={15} cy={21} r={4.2} fill={RED} />
-          <circle cx={15} cy={21} r={1.4} fill={IVORY} />
+          <circle cx={15} cy={19} r={11} fill="none" stroke={BLUE} strokeWidth={2.6} />
+          <circle cx={15} cy={19} r={7.4} fill={GREEN} />
+          <circle cx={15} cy={19} r={4} fill={RED} />
+          <circle cx={15} cy={19} r={1.5} fill="#fff" />
         </g>
       );
     }
@@ -74,12 +72,12 @@ export function tileFace(t: number) {
   if (n === 1) {
     return (
       <g>
-        <path d="M15 33 L8.5 40 M15 33 L15 41 M15 33 L21.5 40" stroke={GREEN} strokeWidth={2} strokeLinecap="round" />
-        <ellipse cx={15} cy={24} rx={6.5} ry={9.5} fill={GREEN} />
-        <path d="M9 22 Q3 17 6 27 Z M21 22 Q27 17 24 27 Z" fill={BLUE} />
-        <circle cx={15} cy={11} r={4.6} fill={RED} />
-        <path d="M15 13.5 L13 17 L17 17 Z" fill={INK} />
-        <circle cx={13.6} cy={10.2} r={0.9} fill={IVORY} />
+        <path d="M15 27 L9 35 M15 27 V36 M15 27 L21 35" stroke={GREEN} strokeWidth={2.2} strokeLinecap="round" />
+        <ellipse cx={15} cy={19} rx={5.6} ry={8} fill={GREEN} />
+        <path d="M9.2 17.5c-6-1.5-6.5 5.5-2.4 6.6z M20.8 17.5c6-1.5 6.5 5.5 2.4 6.6z" fill={BLUE} />
+        <circle cx={15} cy={9.2} r={4} fill={RED} />
+        <path d="M15 11.4 L13.3 14.4 H16.7 Z" fill={INK} />
+        <circle cx={13.7} cy={8.4} r={0.8} fill="#fff" />
       </g>
     );
   }
@@ -114,7 +112,9 @@ export function Tile(props: {
     props.disabled ? "off" : "",
   ].filter(Boolean).join(" ");
   const face = props.back || props.t < 0 ? null : (
-    <svg viewBox="0 0 30 42" width="100%" height="100%" aria-hidden="true">{tileFace(props.t)}</svg>
+    <span className="tile-face">
+      <svg viewBox="0 0 30 42" width="100%" height="100%" aria-hidden="true">{tileFace(props.t)}</svg>
+    </span>
   );
   const label = props.back || props.t < 0 ? "蓋牌" : tileName(props.t);
   if (props.onClick) {
