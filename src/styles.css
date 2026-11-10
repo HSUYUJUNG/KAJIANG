@@ -17,7 +17,7 @@
   --mark-bad: #6b7280;
   --shadow: none;
   --tile-line: #e4e4e4;
-  --tile-edge: #d9d9d9;
+  --tile-edge: #e2e2e2;
   --tile-shadow: 0 2px 0 #d9d9d9, 0 3px 6px rgba(0, 0, 0, 0.18);
   font-family: system-ui, -apple-system, "Segoe UI", Roboto, "PingFang TC", "Noto Sans CJK TC", "Microsoft JhengHei", sans-serif;
 }
@@ -172,7 +172,7 @@ input, select {
   width: 100%;
   height: calc(100% - 3px);
   flex: 1 1 auto;
-  background: #f8f4e8;
+  background: #ffffff;
   border-radius: 6px 6px 2px 2px;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9);
 }
