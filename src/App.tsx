@@ -77,10 +77,7 @@ export function App() {
     <div className="app">
       <header className="top">
         <div className="brand">
-          <div>
-            <h1>KAJIANG</h1>
-            <p className="sub">台灣十六張・南部台・跟朋友連線</p>
-          </div>
+          <h1>KAJIANG</h1>
         </div>
         <button className="icon-btn" onClick={() => setTheme(theme === "light" ? "dark" : theme === "dark" ? "auto" : "light")} aria-label="切換配色">
           {theme === "light" ? "淺色" : theme === "dark" ? "深色" : "自動"}
