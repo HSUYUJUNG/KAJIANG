@@ -38,6 +38,8 @@ function guestModel(g: Game, seat: number, broken: boolean): TableModel {
     me: seat,
     names: view.names,
     scores: [0, 0, 0, 0],
+    chips: [2000, 2000, 2000, 2000],
+    change: null,
     dealer: view.dealer,
     streak: 0,
     wind: 0,

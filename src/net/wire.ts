@@ -1,15 +1,16 @@
-import type {
-  ClaimChoice,
-  Ev,
-  Game,
-  HandPrivate,
-  HumanOptions,
-  Match,
-  Meld,
-  Player,
-  Prompt,
-  PublicView,
-  Settlement,
+import {
+  startingChips,
+  type ClaimChoice,
+  type Ev,
+  type Game,
+  type HandPrivate,
+  type HumanOptions,
+  type Match,
+  type Meld,
+  type Player,
+  type Prompt,
+  type PublicView,
+  type Settlement,
 } from "../logic/engine";
 
 /**
@@ -108,7 +109,12 @@ export function normalizeView(raw: PublicView | null | undefined): PublicView | 
 
 export function normalizeMatch(raw: Match | null | undefined): Match | null {
   if (!raw) return null;
-  return { ...raw, scores: asFixed<number>(raw.scores, 4, 0) };
+  return {
+    ...raw,
+    scores: asFixed<number>(raw.scores, 4, 0),
+    startChips: startingChips(raw.startChips),
+    busted: asList<number>(raw.busted),
+  };
 }
 
 export function normalizeSettlement(raw: Settlement | null | undefined): Settlement | null {

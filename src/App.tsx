@@ -3,7 +3,7 @@ import { createRoom } from "./net/rooms";
 import { defaultSettings, saveName, savedName } from "./net/firebase";
 import type { Settings } from "./net/host";
 import { GameBoundary } from "./ui/ErrorBoundary";
-import { LobbyPreview, Online } from "./ui/Online";
+import { ChipControl, LobbyPreview, Online } from "./ui/Online";
 import { Practice } from "./ui/Practice";
 
 type Screen = "home" | "room" | "practice" | "preview";
@@ -102,7 +102,8 @@ export function App() {
                 <button key={String(label)} aria-pressed={settings.base === base && settings.per === per} onClick={() => setSettings({ ...settings, base: Number(base), per: Number(per) })}>{label}</button>
               ))}
             </div>
-            <p className="muted">底 {settings.base}、每台 {settings.per}。放槍付一筆，自摸三家各付一筆，莊家另加莊家台。胡牌最少 1 台。人不齊由電腦補位。</p>
+            <ChipControl settings={settings} host onSettings={setSettings} />
+            <p className="muted">底 {settings.base}、每台 {settings.per}，起始籌碼 {settings.chips ?? 2000}。放槍付一筆，自摸三家各付一筆，莊家另加莊家台。胡牌最少 1 台。人不齊由電腦補位。</p>
             {err ? <p className="err">{err}</p> : null}
             <button className="btn primary" disabled={busy || !nick} onClick={() => {
               setBusy(true); setErr("");

@@ -2,7 +2,6 @@
 
 import {
   CLAIM_MS,
-  advanceMatch,
   canRonWith,
   canTsumo,
   controlled,
@@ -18,6 +17,7 @@ import {
   legalChoice,
   newGame,
   newMatch,
+  finishHand,
   optionsFor,
   projectHand,
   projectPublic,
@@ -54,6 +54,8 @@ export interface Settings {
   anim: "normal" | "fast" | "off";
   /** 按開始時重抽四個座位。沒寫進房間時視為開。 */
   shuffle?: boolean;
+  /** 每人起始籌碼。沒寫時是 2000。 */
+  chips?: number;
 }
 export interface RoomMeta {
   createdAt: number;
@@ -177,12 +179,19 @@ function adopt(state: HostState, g: Game, now: number): HostState {
     robs = blankRobs();
   }
   let settlement = state.settlement;
-  if (g.phase === "end" && g.result && state.match) {
+  let match = state.match;
+  let meta = state.meta;
+  if (g.phase === "end" && g.result && match) {
     if (!was || was.phase !== "end" || !settlement) {
-      settlement = settle(g, state.match.streak, state.meta.settings.base, state.meta.settings.per);
+      settlement = settle(g, match.streak, state.meta.settings.base, state.meta.settings.per);
+      const done = finishHand(match, g.result, settlement.deltas);
+      if (done.over) {
+        match = done;
+        meta = { ...state.meta, status: "ended" };
+      }
     }
   }
-  return { ...state, game: g, deadline, answers, robs, settlement };
+  return { ...state, game: g, deadline, answers, robs, settlement, match, meta };
 }
 
 export function lobbyState(meta: RoomMeta, seats: Seat[]): HostState {
@@ -230,7 +239,7 @@ export function mergeLiveSeats(current: Seat[], live: Seat[], playing: boolean):
 export function beginMatch(state: HostState, rng: Rng, now: number): HostState {
   const shuffle = shuffleSeatsOn(state.meta.settings);
   const seats = arrangeSeats(state.seats, rng, shuffle);
-  const match = newMatch(state.meta.settings.len, rng);
+  const match = newMatch(state.meta.settings.len, rng, undefined, state.meta.settings.chips);
   const started = startHand({
     ...state,
     seats,
@@ -254,7 +263,8 @@ export function startHand(state: HostState, rng: Rng, now: number): HostState {
 }
 export function nextHand(state: HostState, rng: Rng, now: number): HostState {
   if (!state.game?.result || !state.settlement || !state.match) return state;
-  const match = advanceMatch(state.match, state.game.result, state.settlement.deltas);
+  if (state.match.over) return state;
+  const match = finishHand(state.match, state.game.result, state.settlement.deltas);
   if (match.over) {
     return {
       ...state,
@@ -263,6 +273,18 @@ export function nextHand(state: HostState, rng: Rng, now: number): HostState {
     };
   }
   return startHand({ ...state, match, settlement: null }, rng, now);
+}
+export function returnToLobby(state: HostState): HostState {
+  return {
+    ...state,
+    game: null,
+    match: null,
+    settlement: null,
+    deadline: null,
+    answers: blankAnswers(),
+    robs: blankRobs(),
+    meta: { ...state.meta, status: "lobby" },
+  };
 }
 
 function claimMap(answers: (ClaimChoice | null)[]): Record<number, ClaimChoice> {
