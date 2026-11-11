@@ -91,7 +91,7 @@ export function App() {
         <div className="stack">
           <section className="card stack">
             <label className="field">暱稱
-              <input maxLength={8} value={name} placeholder="例如 春" onChange={(e) => { setName(e.target.value); saveName(e.target.value.trim().slice(0, 8)); }} />
+              <input maxLength={8} value={name} onChange={(e) => { setName(e.target.value); saveName(e.target.value.trim().slice(0, 8)); }} />
             </label>
             <div className="seg">
               <button aria-pressed={settings.len === "quan"} onClick={() => setSettings({ ...settings, len: "quan" })}>一圈</button>
