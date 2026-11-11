@@ -930,6 +930,12 @@ export function botAct(g: Game): Game | null {
   return null;
 }
 
+export const DEFAULT_CHIPS = 2000;
+export function startingChips(n: number | null | undefined): number {
+  if (typeof n === "number" && Number.isFinite(n) && n >= 1) return Math.min(999999, Math.floor(n));
+  return DEFAULT_CHIPS;
+}
+
 export type MatchLen = "quan" | "jiang";
 export interface Match {
   len: MatchLen;
@@ -941,23 +947,44 @@ export interface Match {
   scores: number[];
   played: number;
   over: boolean;
+  /** 開局時每人的籌碼。結算籌碼是這個數加 scores。 */
+  startChips: number;
+  /** 這一場裡籌碼變成 0 或以下的座位。 */
+  busted: number[];
 }
-export function newMatch(len: MatchLen, rng: Rng, dealer?: number): Match {
+export function newMatch(len: MatchLen, rng: Rng, dealer?: number, startChips?: number): Match {
   const d = dealer ?? Math.floor(rng() * 4);
-  return { len, startDealer: d, wind: 0, handNo: 0, dealer: d, streak: 0, scores: [0, 0, 0, 0], played: 0, over: false };
+  return {
+    len, startDealer: d, wind: 0, handNo: 0, dealer: d, streak: 0, scores: [0, 0, 0, 0], played: 0, over: false,
+    startChips: startingChips(startChips), busted: [],
+  };
+}
+export function chipTotals(start: number, scores: number[]): number[] {
+  const base = startingChips(start);
+  return [0, 1, 2, 3].map((i) => base + (scores[i] || 0));
+}
+export function bustedSeats(start: number, scores: number[]): number[] {
+  return chipTotals(start, scores).flatMap((n, i) => (n <= 0 ? [i] : []));
 }
 export function advanceMatch(m: Match, r: Result, d: number[]): Match {
-  const scores = m.scores.map((x, i) => x + d[i]);
+  const scores = m.scores.map((x, i) => x + (d[i] || 0));
   const played = m.played + 1;
   const stays = (r.kind === "draw" || r.winner === m.dealer) && m.streak < STREAK_CAP;
-  if (stays) return { ...m, scores, played, streak: m.streak + 1 };
+  if (stays) return { ...m, scores, played, streak: m.streak + 1, busted: m.busted ?? [] };
   let handNo = m.handNo + 1, wind = m.wind;
   if (handNo === 4) {
     handNo = 0;
     wind++;
   }
   const over = wind >= (m.len === "quan" ? 1 : 4);
-  return { ...m, scores, played, dealer: (m.dealer + 1) % 4, streak: 0, handNo, wind: over ? m.wind : wind, over };
+  return { ...m, scores, played, dealer: (m.dealer + 1) % 4, streak: 0, handNo, wind: over ? m.wind : wind, over, busted: m.busted ?? [] };
+}
+/** 把這一手的輸贏記進籌碼。有人輸光，或一圈一將打完，整場就結束。 */
+export function finishHand(m: Match, r: Result, d: number[]): Match {
+  const next = advanceMatch(m, r, d);
+  const busted = bustedSeats(next.startChips, next.scores);
+  if (busted.length === 0) return { ...next, busted: [] };
+  return { ...next, over: true, busted };
 }
 export function seatWind(p: number, dealer: number): number {
   return (p - dealer + 4) % 4;

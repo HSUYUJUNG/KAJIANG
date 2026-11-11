@@ -35,7 +35,7 @@ export { onAuthStateChanged, serverTimestamp, ref };
 export type { User };
 
 export function defaultSettings(): Settings {
-  return { len: "quan", base: 50, per: 20, anim: "normal", shuffle: true };
+  return { len: "quan", base: 50, per: 20, anim: "normal", shuffle: true, chips: 2000 };
 }
 
 export function shareUrl(code: string): string {

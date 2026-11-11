@@ -21,6 +21,8 @@ export interface TableModel {
   me: number;
   names: string[];
   scores: number[];
+  chips: number[];
+  change: number[] | null;
   dealer: number;
   streak: number;
   wind: number;
@@ -142,6 +144,8 @@ function readyModel(raw: TableModel): TableModel {
     ...raw,
     names: Array.isArray(raw.names) ? raw.names : [],
     scores: Array.isArray(raw.scores) ? raw.scores : [],
+    chips: Array.isArray(raw.chips) ? raw.chips : (Array.isArray(raw.scores) ? raw.scores : []),
+    change: Array.isArray(raw.change) ? raw.change : null,
     players,
     myHand: Array.isArray(raw.myHand) ? raw.myHand : [],
     myMelds: (Array.isArray(raw.myMelds) ? raw.myMelds : []).map((meld) => ({
@@ -308,7 +312,8 @@ function SeatLine(props: { model: TableModel; seat: number; plain?: boolean }) {
       <span>{wind}</span>
       {dealer ? <span>{dealer}</span> : null}
       {status ? <span className="muted">{status}</span> : null}
-      <span>{money(m.scores[seat] || 0)}</span>
+      <span>{m.chips[seat] ?? 0}</span>
+      {m.phase === "end" && m.change && m.change[seat] ? <span className="muted">{money(m.change[seat])}</span> : null}
     </div>
   );
 }
@@ -412,6 +417,8 @@ export function modelFromLocal(g: Game, scores: number[], match: { wind: number;
     me,
     names: g.names,
     scores,
+    chips: [...scores],
+    change: null,
     dealer: g.dealer,
     streak: match.streak,
     wind: match.wind,
@@ -441,4 +448,44 @@ export function modelFromLocal(g: Game, scores: number[], match: { wind: number;
 
 export function winningText(hand: number[], melds: Meld[]): string {
   return `${decompText(toCounts(hand))}${melds.length ? "　＋副露 " + melds.map((m) => groupText(m.tiles.slice(0, 3))).join("　") : ""}`;
+}
+
+export function MatchResult(props: {
+  title: string;
+  names: string[];
+  start: number;
+  scores: number[];
+  busted: number[];
+  children?: ReactNode;
+}) {
+  const rows = [0, 1, 2, 3].map((i) => ({
+    i,
+    name: props.names[i] || `座位${i + 1}`,
+    final: props.start + (props.scores[i] || 0),
+    net: props.scores[i] || 0,
+  })).sort((a, b) => b.final - a.final || a.i - b.i);
+  const broke = props.busted.map((i) => props.names[i]).filter(Boolean);
+  return (
+    <section className="card stack">
+      <h2>結算表</h2>
+      <p>{props.title}</p>
+      {broke.length ? <p>{broke.join("、")}籌碼輸光，這場結束。</p> : null}
+      <table>
+        <thead>
+          <tr><th>玩家</th><th className="num">起始</th><th className="num">結算</th><th className="num">輸贏</th></tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => (
+            <tr key={r.i}>
+              <td>{r.name}</td>
+              <td className="num">{props.start}</td>
+              <td className="num">{r.final}</td>
+              <td className="num">{money(r.net)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {props.children}
+    </section>
+  );
 }

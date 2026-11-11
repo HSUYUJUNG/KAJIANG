@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { get, onValue, remove } from "firebase/database";
-import { mulberry, projectPublic, type HandPrivate, type PublicView, type Settlement } from "../logic/engine";
+import { bustedSeats, mulberry, projectPublic, startingChips, type HandPrivate, type Match, type PublicView, type Settlement } from "../logic/engine";
 import { ensureUser, knownRooms, roomRef, shareUrl } from "../net/firebase";
 import { normalizeHand, normalizePublic } from "../net/wire";
 import {
@@ -11,6 +11,7 @@ import {
   mergeLiveSeats,
   nextHand,
   paceMs,
+  returnToLobby,
   roomExpired,
   seatName,
   shuffleSeatsOn,
@@ -35,7 +36,7 @@ import {
   transferHost,
   writeSeat,
 } from "../net/rooms";
-import { TableView, type Action, type TableModel } from "./TableView";
+import { MatchResult, TableView, type Action, type TableModel } from "./TableView";
 
 export function LobbyPreview() {
   const seats: Seat[] = [
@@ -217,6 +218,10 @@ export function Online(props: { code: string; name: string; onHome: () => void }
     const commit = (window as unknown as { __kajiangHost?: (fn: (s: HostState) => HostState, seats?: boolean) => void }).__kajiangHost;
     commit?.((s) => nextHand(s, mulberry((Date.now() + 17) >>> 0), Date.now()), false);
   };
+  const backToLobby = () => {
+    const commit = (window as unknown as { __kajiangHost?: (fn: (s: HostState) => HostState, seats?: boolean) => void }).__kajiangHost;
+    commit?.((s) => returnToLobby(s), false);
+  };
 
   const act = (a: Action) => {
     if (!uid || mySeat < 0) return;
@@ -235,6 +240,29 @@ export function Online(props: { code: string; name: string; onHome: () => void }
   }
   if (roomExpired(meta.lastActive) && meta.status !== "lobby") {
     return <div className="card stack"><p>這間房已超過一天，請另開新桌。</p><button className="btn" onClick={props.onHome}>回首頁</button></div>;
+  }
+
+  const liveMatch = (isHost ? hostSnap?.match : pub?.match) ?? null;
+  if (liveMatch?.over) {
+    const chipStart = startingChips(liveMatch.startChips);
+    const names = seats.map(seatName);
+    const broke = liveMatch.busted?.length ? liveMatch.busted : bustedSeats(chipStart, liveMatch.scores);
+    return (
+      <MatchResult
+        title={broke.length ? "有人籌碼輸光" : (liveMatch.len === "jiang" ? "一將結束" : "一圈結束")}
+        names={names}
+        start={chipStart}
+        scores={liveMatch.scores}
+        busted={broke}
+      >
+        <div className="row">
+          {isHost ? <button className="btn primary" onClick={start}>再來一場</button> : null}
+          {isHost ? <button className="btn" onClick={backToLobby}>回大廳</button> : null}
+          {!isHost ? <p className="muted">等房主再來一場或回大廳。</p> : null}
+          <button className="btn quiet" onClick={props.onHome}>離開</button>
+        </div>
+      </MatchResult>
+    );
   }
 
   const playing = (isHost ? hostSnap?.meta.status : pub?.status) === "playing" || (isHost ? hostSnap?.meta.status : pub?.status) === "ended";
@@ -300,7 +328,7 @@ function projectFromHost(state: HostState, me: number): { model: TableModel; set
   const view = projectPublic(state.game);
   const hand = handsOf(state)[me];
   return {
-    model: toModel(me, view, hand, state.seats, state.match.scores, state.settlement, state.match),
+    model: toModel(me, view, hand, state.seats, state.settlement, state.match),
     settlement: state.settlement,
     deadline: state.deadline,
   };
@@ -315,7 +343,7 @@ function projectFromPublic(
 ): { model: TableModel; settlement: Settlement | null; deadline: number | null } | null {
   if (!pub?.view || !pub.match) return null;
   return {
-    model: toModel(me, pub.view, hand, seats, pub.match.scores, pub.settlement, pub.match),
+    model: toModel(me, pub.view, hand, seats, pub.settlement, pub.match),
     settlement: pub.settlement,
     deadline: pub.deadline,
   };
@@ -326,16 +354,18 @@ function toModel(
   view: PublicView,
   hand: HandPrivate | null,
   seats: Seat[],
-  scores: number[],
   settlement: Settlement | null,
-  match: { wind: number; handNo: number; streak: number; dealer: number },
-  _settings?: Settings,
+  match: Match,
 ): TableModel {
-  const shown = scores.map((s, i) => s + (settlement?.deltas[i] || 0));
+  const chipStart = startingChips(match.startChips);
+  const pending = !match.over && view.phase === "end" ? settlement?.deltas : null;
+  const chips = [0, 1, 2, 3].map((i) => chipStart + (match.scores[i] || 0) + (pending?.[i] || 0));
   return {
     me,
     names: seats.map(seatName),
-    scores: shown,
+    scores: chips,
+    chips,
+    change: view.phase === "end" ? (settlement?.deltas ?? null) : null,
     dealer: view.dealer,
     streak: match.streak,
     wind: match.wind,
@@ -366,6 +396,34 @@ function toIntent(a: Action, seat: number, uid: string): Intent | null {
   if (a.type === "claim") return { uid, seat, kind: "claim", claim: a.kind === "chi" ? { kind: "chi", tiles: a.tiles ?? [] } : { kind: a.kind } };
   if (a.type === "rob") return { uid, seat, kind: "rob", rob: a.yes };
   return null;
+}
+
+export function ChipControl(props: { settings: Settings; host: boolean; onSettings: (s: Settings) => void }) {
+  const chips = startingChips(props.settings.chips);
+  const [custom, setCustom] = useState(String(chips));
+  useEffect(() => { setCustom(String(chips)); }, [chips]);
+  if (!props.host) return <p className="muted">起始籌碼 {chips}。輸光就結束這場。</p>;
+  return (
+    <div className="stack">
+      <div>
+        <b>起始籌碼</b>
+        <div className="muted">每人開局這麼多，輸光就結束這場</div>
+      </div>
+      <div className="seg">
+        {[1000, 2000, 5000].map((n) => (
+          <button key={n} type="button" aria-pressed={chips === n} onClick={() => props.onSettings({ ...props.settings, chips: n })}>{n}</button>
+        ))}
+      </div>
+      <label className="field">自訂
+        <input inputMode="numeric" aria-label="起始籌碼" value={custom} onChange={(e) => {
+          const v = e.target.value.replace(/\D/g, "").slice(0, 6);
+          setCustom(v);
+          const n = Number(v);
+          if (n >= 1) props.onSettings({ ...props.settings, chips: n });
+        }} />
+      </label>
+    </div>
+  );
 }
 
 function Lobby(props: {
@@ -431,6 +489,7 @@ function Lobby(props: {
           </button>
         ) : <span className="muted">{shuffleSeatsOn(props.settings) ? "開" : "關"}</span>}
       </div>
+      <ChipControl settings={props.settings} host={props.host} onSettings={props.onSettings} />
       {props.host ? (
         <>
           <div className="seg">

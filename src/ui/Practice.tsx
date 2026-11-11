@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import {
-  advanceMatch,
+  finishHand,
   cpuChooseDiscard,
   cpuStep,
   declareKan,
@@ -10,10 +10,10 @@ import {
   mulberry,
   newGame,
   newMatch,
-  ranking,
   resolveClaims,
   resolveRob,
   settle,
+  startingChips,
   shText,
   tileName,
   toCounts,
@@ -23,7 +23,7 @@ import {
   type Match,
   type Settlement,
 } from "../logic/engine";
-import { TableView, modelFromLocal, money, winningText, type Action } from "./TableView";
+import { MatchResult, TableView, modelFromLocal, winningText, type Action } from "./TableView";
 import { Tile } from "./Tile";
 
 const RNG = mulberry((Date.now() ^ 0x9e3779b9) >>> 0);
@@ -164,6 +164,7 @@ function CpuMatch(props: { demo: boolean }) {
   const [game, setGame] = useState<Game | null>(opened?.game ?? null);
   const [settled, setSettled] = useState<Settlement | null>(null);
   const [stake, setStake] = useState({ base: 50, per: 20 });
+  const [chips, setChips] = useState(2000);
   const chosen = stakeKey === "custom"
     ? (/^\d+$/.test(customBase) && /^\d+$/.test(customPer) && +customBase > 0 && +customPer > 0 ? { base: +customBase, per: +customPer } : null)
     : { base: +stakeKey.split("/")[0], per: +stakeKey.split("/")[1] };
@@ -180,7 +181,7 @@ function CpuMatch(props: { demo: boolean }) {
   const start = () => {
     if (!chosen) return;
     setStake(chosen);
-    const m = newMatch(len, RNG);
+    const m = newMatch(len, RNG, undefined, chips);
     setMatch(m);
     setSettled(null);
     setGame(newGame(RNG, m.dealer, { humans: [0], names: ["你", "下家", "對家", "上家"] }));
@@ -195,7 +196,7 @@ function CpuMatch(props: { demo: boolean }) {
   };
   const next = () => {
     if (!match || !game?.result || !settled) return;
-    const m2 = advanceMatch(match, game.result, settled.deltas);
+    const m2 = finishHand(match, game.result, settled.deltas);
     setMatch(m2);
     setSettled(null);
     setGame(m2.over ? null : newGame(RNG, m2.dealer, { humans: [0], names: ["你", "下家", "對家", "上家"] }));
@@ -223,29 +224,44 @@ function CpuMatch(props: { demo: boolean }) {
           <button aria-pressed={anim === "fast"} onClick={() => setAnim("fast")}>快速</button>
           <button aria-pressed={anim === "off"} onClick={() => setAnim("off")}>關閉</button>
         </div>
-        <p className="muted">{chosen ? `1 台付 ${chosen.base + chosen.per}。${len === "quan" ? "一圈是四家各當過莊，連莊最多 3 次。" : "一將是東南西北四圈。"}` : "底和每台都要是正整數。"}</p>
+        <div className="seg">
+          {[1000, 2000, 5000].map((n) => <button key={n} type="button" aria-pressed={chips === n} onClick={() => setChips(n)}>{n}</button>)}
+        </div>
+        <label className="field">起始籌碼
+          <input inputMode="numeric" aria-label="起始籌碼" value={String(chips)} onChange={(e) => {
+            const n = Number(e.target.value.replace(/\D/g, "").slice(0, 6));
+            if (n >= 1) setChips(n);
+          }} />
+        </label>
+        <p className="muted">{chosen ? `1 台付 ${chosen.base + chosen.per}，起始籌碼 ${chips}。${len === "quan" ? "一圈是四家各當過莊，連莊最多 3 次。" : "一將是東南西北四圈。"}輸光就結束。` : "底和每台都要是正整數。"}</p>
         <button className="btn primary" disabled={!chosen} onClick={start}>開始</button>
       </section>
     );
   }
-  if (match.over) {
-    const order = ranking(match.scores);
+  const pending = game?.phase === "end" && game.result && settled ? finishHand(match, game.result, settled.deltas) : null;
+  if (match.over || pending?.over) {
+    const done = match.over ? match : pending!;
     return (
-      <section className="card stack">
-        <h2>{match.len === "quan" ? "一圈" : "一將"}結束，共 {match.played} 局</h2>
-        <table>
-          <tbody>{order.map((p, i) => <tr key={p}><td>第 {i + 1}</td><td>{["你", "下家", "對家", "上家"][p]}</td><td className="num">{money(match.scores[p])}</td></tr>)}</tbody>
-        </table>
+      <MatchResult
+        title={(done.busted?.length ? "有人籌碼輸光" : (done.len === "jiang" ? "一將結束" : "一圈結束"))}
+        names={["你", "下家", "對家", "上家"]}
+        start={startingChips(done.startChips)}
+        scores={done.scores}
+        busted={done.busted ?? []}
+      >
         <div className="row">
           <button className="btn primary" onClick={start}>再來一場</button>
-          <button className="btn" onClick={() => { setMatch(null); setGame(null); }}>重設</button>
+          <button className="btn" onClick={() => { setMatch(null); setGame(null); setSettled(null); }}>回設定</button>
         </div>
-      </section>
+      </MatchResult>
     );
   }
   if (!game) return null;
-  const scores = match.scores.map((s, i) => s + (settled?.deltas[i] || 0));
+  const chipStart = startingChips(match.startChips);
+  const scores = [0, 1, 2, 3].map((i) => chipStart + (match.scores[i] || 0) + (game.phase === "end" ? (settled?.deltas[i] || 0) : 0));
   const model = modelFromLocal(game, scores, match);
+  model.chips = scores;
+  model.change = game.phase === "end" ? (settled?.deltas ?? null) : null;
   return (
     <div>
       <TableView
@@ -258,7 +274,7 @@ function CpuMatch(props: { demo: boolean }) {
         footer={game.phase === "end" && settled ? (
           <div className="stack" style={{ marginTop: 8 }}>
             {game.result && game.result.kind !== "draw" ? <p className="muted">{winningText(game.players[game.result.winner].hand, game.players[game.result.winner].melds)}</p> : null}
-            <button className="btn primary" onClick={next}>{advanceMatch(match, game.result!, settled.deltas).over ? "看總排名" : "下一局"}</button>
+            <button className="btn primary" onClick={next}>{finishHand(match, game.result!, settled.deltas).over ? "看結算" : "下一局"}</button>
           </div>
         ) : null}
       />
