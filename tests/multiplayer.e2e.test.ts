@@ -111,7 +111,7 @@ describe("資料庫規則與兩人一局", () => {
           : suggestIntent(g, actor, uid);
         if (!intent) throw new Error("沒有動作");
         if (actor === 1) await assertSucceeds(set(ref(bob, "rooms/TEST/intents/1"), clean(intent)));
-        const next = applyHuman(state, intent, now, gone);
+        const next = applyHuman(state, intent, now);
         if (next === state) throw new Error("拒絕 " + intent.kind);
         state = next;
       } else {

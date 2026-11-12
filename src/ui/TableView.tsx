@@ -224,7 +224,7 @@ export function TableView(props: {
         </div>
         <div className="r-e"><River model={m} seat={right} size={river} align="end" hide={hideRiver(right)} /></div>
         <div className="r-s"><River model={m} seat={m.me} size={river} align="center" hide={hideRiver(m.me)} /></div>
-        {anim.cur ? <Fly ev={anim.cur} fly={anim.fly} narrow={narrow} me={m.me} myMelds={m.myMelds} /> : null}
+        {anim.cur ? <Fly ev={anim.cur} fly={anim.fly} narrow={narrow} me={m.me} myMelds={m.myMelds} names={m.names} /> : null}
       </div>
       <div className={"me-box" + (myTurn || m.prompt?.kind === "claim" || m.prompt?.kind === "rob" ? " on" : "")}>
         <SeatLine model={m} seat={m.me} plain />
@@ -352,7 +352,7 @@ function River(props: { model: TableModel; seat: number; size: number; align: "s
   );
 }
 
-function Fly(props: { ev: Ev; fly: boolean; narrow: boolean; me: number; myMelds: Meld[] }) {
+function Fly(props: { ev: Ev; fly: boolean; narrow: boolean; me: number; myMelds: Meld[]; names: string[] }) {
   const e = props.ev;
   const word = e.kind === "chi" ? "吃" : e.kind === "pon" ? "碰" : e.kind === "kan" ? "槓" : e.kind === "ankan" ? "暗槓" : e.kind === "added" ? "加槓" : e.kind === "ron" ? "胡" : e.kind === "tsumo" ? "自摸" : e.kind === "rob" ? "搶槓胡" : "";
   let tiles = Array.isArray(e.tiles) ? e.tiles : [];
@@ -369,7 +369,7 @@ function Fly(props: { ev: Ev; fly: boolean; narrow: boolean; me: number; myMelds
       opacity: props.fly ? 0.2 : 1,
       transition: "left 280ms ease, top 280ms ease, transform 280ms ease, opacity 280ms ease",
     }}>
-      <b>{e.kind === "discard" ? `打出 ${tileName(e.tiles[0])}` : word}</b>
+      <b className="fly-who">{e.kind === "discard" ? `${props.names[e.p] || "玩家"} 打出 ${tileName(e.tiles[0])}` : word}</b>
       <div className="row">
         {tiles.map((t, i) => <Tile key={i} t={t < 0 ? 0 : t} size={size} back={t < 0 || (e.kind === "ankan" && e.p !== props.me)} />)}
       </div>

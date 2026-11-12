@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { get, onValue, remove } from "firebase/database";
 import { bustedSeats, mulberry, projectPublic, startingChips, type HandPrivate, type Match, type PublicView, type Settlement } from "../logic/engine";
-import { ensureUser, knownRooms, roomRef, shareUrl } from "../net/firebase";
+import { db, ensureUser, knownRooms, ref, roomRef, shareUrl } from "../net/firebase";
 import { normalizeHand, normalizePublic } from "../net/wire";
 import {
   applyHuman,
@@ -25,10 +25,9 @@ import {
   type Settings,
 } from "../net/host";
 import {
-  bindHostPresence,
-  bindSeatPresence,
   parseSeats,
   patchSeat,
+  presenceFlag,
   publishState,
   saveSettings,
   sendIntent,
@@ -105,15 +104,31 @@ export function Online(props: { code: string; name: string; onHome: () => void }
     const seat = mySeat;
     const unsub = onValue(roomRef(code, `hands/${seat}`), (s) => setHandTiles(normalizeHand(s.val())), () => undefined);
     let cancelled = false;
-    let release = (_markOffline: boolean) => undefined as void;
-    void bindSeatPresence(code, seat).then((fn) => {
-      if (cancelled) fn(seatsRef.current[seat]?.uid === uid);
-      else release = fn;
-    }).catch(() => undefined);
+    const flag = presenceFlag(roomRef(code, `seats/${seat}/connected`));
+    const arm = () => {
+      if (cancelled || document.visibilityState === "hidden") return;
+      void flag.arm().catch(() => undefined);
+    };
+    arm();
+    const unsubConn = onValue(ref(db, ".info/connected"), (snap) => {
+      if (snap.val() === true) arm();
+    });
+    const onBack = () => {
+      if (document.visibilityState === "visible") arm();
+    };
+    document.addEventListener("visibilitychange", onBack);
+    window.addEventListener("focus", onBack);
+    window.addEventListener("pageshow", onBack);
+    const beat = window.setInterval(arm, 2000);
     return () => {
       cancelled = true;
+      window.clearInterval(beat);
       unsub();
-      release(seatsRef.current[seat]?.uid === uid);
+      unsubConn();
+      document.removeEventListener("visibilitychange", onBack);
+      window.removeEventListener("focus", onBack);
+      window.removeEventListener("pageshow", onBack);
+      void flag.release(seatsRef.current[seat]?.uid === uid);
     };
   }, [uid, code, mySeat]);
 
@@ -168,14 +183,37 @@ export function Online(props: { code: string; name: string; onHome: () => void }
       if (stop) return;
       stateRef.current = state;
       setHostSnap(state);
-      void bindHostPresence(code).then((fn) => { presence = fn; });
+      const hostFlag = presenceFlag(roomRef(code, "meta/hostOnline"));
+      const armHost = () => {
+        if (stop || document.visibilityState === "hidden") return;
+        void hostFlag.arm().catch(() => undefined);
+      };
+      armHost();
+      const unsubHostConn = onValue(ref(db, ".info/connected"), (snap) => {
+        if (snap.val() === true) armHost();
+      });
+      const onHostBack = () => {
+        if (document.visibilityState === "visible") armHost();
+      };
+      document.addEventListener("visibilitychange", onHostBack);
+      window.addEventListener("focus", onHostBack);
+      window.addEventListener("pageshow", onHostBack);
+      const hostBeat = window.setInterval(armHost, 2000);
+      presence = () => {
+        window.clearInterval(hostBeat);
+        unsubHostConn();
+        document.removeEventListener("visibilitychange", onHostBack);
+        window.removeEventListener("focus", onHostBack);
+        window.removeEventListener("pageshow", onHostBack);
+        void hostFlag.release(true);
+      };
       for (let i = 0; i < 4; i++) {
         const iref = roomRef(code, `intents/${i}`);
         intentUnsubs.push(onValue(iref, (snap) => {
           const intent = snap.val() as Intent | null;
           if (!intent) return;
           void remove(iref);
-          commit((s) => applyHuman(s, intent, Date.now(), goneAt));
+          commit((s) => applyHuman(s, intent, Date.now()));
         }));
       }
     };
@@ -229,7 +267,7 @@ export function Online(props: { code: string; name: string; onHome: () => void }
     if (!intent) return;
     if (isHost) {
       const commit = (window as unknown as { __kajiangHost?: (fn: (s: HostState) => HostState) => void }).__kajiangHost;
-      commit?.((s) => applyHuman(s, intent, Date.now(), [0, 0, 0, 0]));
+      commit?.((s) => applyHuman(s, intent, Date.now()));
     } else {
       void sendIntent(code, intent).catch(() => setErr("送出失敗，請看一下網路"));
     }

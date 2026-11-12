@@ -37,7 +37,8 @@ import {
 import { normalizeAnswers, normalizeGame, normalizeMatch, normalizeRobs, normalizeSettlement } from "./wire";
 
 export const ROOM_TTL_MS = 24 * 60 * 60 * 1000;
-export const DISCONNECT_GRACE_MS = 4000;
+/** 人離開連線超過這段時間，才代打一張（不是整場託管）。胡牌和自摸不代打。 */
+export const DISCONNECT_GRACE_MS = 45_000;
 export const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
 export interface Seat {
@@ -145,20 +146,35 @@ export function seatName(seat: Seat, index: number): string {
 function sameNums(a: number[], b: number[]): boolean {
   return a.length === b.length && a.every((x, i) => x === b[i]);
 }
-export function controlOf(seats: Seat[], now: number, goneAt: number[]): { humans: number[]; auto: number[] } {
+export function controlOf(seats: Seat[]): { humans: number[]; auto: number[] } {
   const humans: number[] = [];
   const auto: number[] = [];
   for (let i = 0; i < 4; i++) {
     const s = seats[i];
     if (!s?.uid || s.bot) continue;
     humans.push(i);
-    const gone = !s.connected && goneAt[i] > 0 && now - goneAt[i] >= DISCONNECT_GRACE_MS;
-    if (s.auto || gone) auto.push(i);
+    if (s.auto) auto.push(i);
   }
   return { humans, auto };
 }
-function withControl(g: Game, seats: Seat[], now: number, goneAt: number[]): Game {
-  const { humans, auto } = controlOf(seats, now, goneAt);
+/** 這次叫牌裡有玩家可以胡，就不能倒數自動過。碰、吃、槓仍倒數。搶槓維持倒數。 */
+export function claimBlocksTimeout(g: Game): boolean {
+  if (g.phase !== "claim" || !g.last) return false;
+  const tile = g.last.tile;
+  const from = g.last.from;
+  return g.wait.some((p) => {
+    if (!controlled(g, p)) return false;
+    const o = g.optionsBySeat?.[p] ?? optionsFor(g, p, tile, from);
+    return !!o?.ron;
+  });
+}
+
+export function absentLongEnough(seat: Seat | undefined, goneAt: number, now: number): boolean {
+  return !!seat && !seat.bot && !!seat.uid && !seat.connected && !seat.auto && goneAt > 0 && now - goneAt >= DISCONNECT_GRACE_MS;
+}
+
+function withControl(g: Game, seats: Seat[]): Game {
+  const { humans, auto } = controlOf(seats);
   if (sameNums(g.humans, humans) && sameNums(g.auto, auto)) return g;
   return { ...g, humans: [...humans], auto: [...auto] };
 }
@@ -170,7 +186,7 @@ function adopt(state: HostState, g: Game, now: number): HostState {
   let answers = state.answers;
   let robs = state.robs;
   if (waiting && !continued) {
-    deadline = now + CLAIM_MS;
+    deadline = claimBlocksTimeout(g) ? null : now + CLAIM_MS;
     answers = blankAnswers();
     robs = blankRobs();
   } else if (!waiting) {
@@ -298,11 +314,11 @@ function robMap(robs: (boolean | null)[]): Record<number, boolean> {
   return out;
 }
 
-export function applyHuman(state: HostState, intent: Intent, now: number, goneAt: number[]): HostState {
+export function applyHuman(state: HostState, intent: Intent, now: number): HostState {
   if (!state.game || state.game.phase === "end") return state;
   const seat = state.seats[intent.seat];
   if (!seat || seat.uid !== intent.uid || seat.bot) return state;
-  const g = withControl(state.game, state.seats, now, goneAt);
+  const g = withControl(state.game, state.seats);
   if (!controlled(g, intent.seat)) return state;
   try {
     if (intent.kind === "discard" && g.phase === "turn" && g.turn === intent.seat) {
@@ -344,12 +360,12 @@ export function applyHuman(state: HostState, intent: Intent, now: number, goneAt
 /** 推進一步：電腦出牌、逾時自動過、或斷線改由電腦代打。沒有進展時回傳同一個物件。 */
 export function tick(state: HostState, now: number, goneAt: number[], earliestBot: number): HostState {
   if (!state.game || !state.match || state.meta.status !== "playing" || state.game.phase === "end") return state;
-  const g = withControl(state.game, state.seats, now, goneAt);
+  const g = withControl(state.game, state.seats);
   if (g.phase === "claim" || g.phase === "robkan") {
     const ready = g.phase === "claim"
       ? g.wait.every((p) => !controlled(g, p) || state.answers[p])
       : g.wait.every((p) => !controlled(g, p) || state.robs[p] !== null);
-    const timedOut = state.deadline !== null && now >= state.deadline;
+    const timedOut = state.deadline !== null && now >= state.deadline && !claimBlocksTimeout(g);
     if (ready || timedOut) {
       const base = { ...state, game: g };
       const next = g.phase === "claim" ? resolveClaims(g, claimMap(state.answers)) : resolveRob(g, robMap(state.robs));
@@ -360,6 +376,10 @@ export function tick(state: HostState, now: number, goneAt: number[], earliestBo
   if (g.phase === "turn" && !controlled(g, g.turn)) {
     if (now < earliestBot) return g === state.game ? state : { ...state, game: g };
     return adopt({ ...state, game: g }, cpuStep(g), now);
+  }
+  if (g.phase === "turn" && controlled(g, g.turn) && !canTsumo(g, g.turn) && absentLongEnough(state.seats[g.turn], goneAt[g.turn] ?? 0, now)) {
+    if (now < earliestBot) return g === state.game ? state : { ...state, game: g };
+    return adopt({ ...state, game: g }, discard(g, g.turn, cpuChooseDiscard(g, g.turn)), now);
   }
   return g === state.game ? state : { ...state, game: g };
 }
