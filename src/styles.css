@@ -231,10 +231,11 @@ button.tile { cursor: pointer; }
 .hand { justify-content: flex-start; align-items: flex-end; margin-top: 8px; }
 .drawn { margin-left: 10px; display: flex; flex-direction: column; align-items: center; gap: 2px; }
 .fly {
-  position: absolute; z-index: 5; pointer-events: none; display: flex; flex-direction: column; align-items: center; gap: 6px;
-  background: var(--elev); color: var(--ink); border: 1px solid var(--line); border-radius: 14px; padding: 8px 10px;
+  position: absolute; z-index: 5; pointer-events: none; display: flex; flex-direction: column; align-items: center; gap: 4px;
+  background: var(--elev); color: var(--ink); border: 1px solid var(--line); border-radius: 14px; padding: 6px 8px;
   max-width: calc(100% - 12px);
 }
+.fly-who { font-size: 13px; line-height: 1.2; text-align: center; white-space: nowrap; }
 .banner { border-radius: 12px; padding: 10px 12px; background: var(--bg-2); border: 1px solid var(--line); margin-top: 8px; }
 .banner.good { border-color: var(--good); }
 table { width: 100%; border-collapse: collapse; font-size: 13px; }

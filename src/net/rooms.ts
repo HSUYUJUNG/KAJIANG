@@ -86,25 +86,51 @@ export async function sendIntent(code: string, intent: Intent): Promise<void> {
   await set(roomRef(code, `intents/${intent.seat}`), clean(intent));
 }
 
+/**
+ * 連線中斷時把這個欄位設成 false。重新連上要再登記一次，
+ * 否則手機把分頁切到背景後，回來也不會把自己標回線上。
+ */
+export function presenceFlag(target: ReturnType<typeof roomRef>): {
+  arm: () => Promise<void>;
+  release: (markOffline: boolean) => Promise<void>;
+} {
+  let chain = Promise.resolve();
+  const enqueue = (job: () => Promise<void>) => {
+    const run = chain.then(job);
+    chain = run.catch(() => undefined);
+    return run;
+  };
+  return {
+    arm() {
+      return enqueue(async () => {
+        await onDisconnect(target).cancel();
+        await onDisconnect(target).set(false);
+        await set(target, true);
+      });
+    },
+    release(markOffline: boolean) {
+      return enqueue(async () => {
+        await onDisconnect(target).cancel();
+        if (markOffline) await set(target, false);
+      });
+    },
+  };
+}
+
 /** markOffline 為假時只取消斷線回呼，避免換座後把新坐在原位的人標成離線。 */
 export async function bindSeatPresence(code: string, seat: number): Promise<(markOffline: boolean) => void> {
-  const connected = roomRef(code, `seats/${seat}/connected`);
-  const disc = onDisconnect(connected);
-  await disc.set(false);
-  await set(connected, true);
+  const flag = presenceFlag(roomRef(code, `seats/${seat}/connected`));
+  await flag.arm();
   return (markOffline: boolean) => {
-    void disc.cancel();
-    if (markOffline) void set(connected, false);
+    void flag.release(markOffline);
   };
 }
 
 export async function bindHostPresence(code: string): Promise<() => void> {
-  const online = roomRef(code, "meta/hostOnline");
-  await onDisconnect(online).set(false);
-  await set(online, true);
+  const flag = presenceFlag(roomRef(code, "meta/hostOnline"));
+  await flag.arm();
   return () => {
-    void onDisconnect(online).cancel();
-    void set(online, false);
+    void flag.release(true);
   };
 }
 
