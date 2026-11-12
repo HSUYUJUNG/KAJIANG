@@ -3,10 +3,10 @@
     "rooms": {
       "$code": {
         ".read": false,
-        ".write": "auth != null && data.exists() && data.child('meta/lastActive').val() < now - 86400000 && !newData.exists()",
+        ".write": "auth != null && data.exists() && !newData.exists() && ((data.child('meta/lastActive').val() != null && data.child('meta/lastActive').val() < now - 86400000) || (data.child('meta/lastActive').val() == null && data.child('meta/createdAt').val() != null && data.child('meta/createdAt').val() < now - 86400000) || (data.child('meta/lastActive').val() == null && data.child('meta/createdAt').val() == null))",
         "meta": {
           ".read": "auth != null",
-          ".write": "auth != null && ( (!data.exists() && newData.child('hostUid').val() === auth.uid && newData.child('createdAt').val() === now && newData.child('lastActive').val() === now && newData.child('status').val() === 'lobby') || (data.child('lastActive').val() > now - 86400000 && data.child('hostUid').val() === auth.uid && newData.child('hostUid').val() === data.child('hostUid').val() && newData.child('createdAt').val() === data.child('createdAt').val() && (newData.child('lastActive').val() === now || newData.child('lastActive').val() === data.child('lastActive').val())) || (data.child('lastActive').val() > now - 86400000 && data.child('hostUid').val() === auth.uid && data.child('nextHost').val() !== null && newData.child('hostUid').val() === data.child('nextHost').val() && newData.child('createdAt').val() === data.child('createdAt').val()) || (data.child('lastActive').val() > now - 86400000 && data.child('nextHost').val() === auth.uid && newData.child('hostUid').val() === auth.uid && newData.child('createdAt').val() === data.child('createdAt').val()) )"
+          ".write": "auth != null && ( (!data.exists() && newData.child('hostUid').val() === auth.uid && newData.child('createdAt').val() === now && newData.child('lastActive').val() === now && newData.child('status').val() === 'lobby') || (data.child('lastActive').val() > now - 86400000 && data.child('hostUid').val() === auth.uid && newData.child('hostUid').val() === data.child('hostUid').val() && newData.child('createdAt').val() === data.child('createdAt').val() && (newData.child('lastActive').val() === now || newData.child('lastActive').val() === data.child('lastActive').val())) || (data.child('lastActive').val() > now - 86400000 && data.child('hostUid').val() === auth.uid && data.child('nextHost').val() !== null && newData.child('hostUid').val() === data.child('nextHost').val() && newData.child('createdAt').val() === data.child('createdAt').val()) || (data.child('lastActive').val() > now - 86400000 && data.child('nextHost').val() === auth.uid && newData.child('hostUid').val() === auth.uid && newData.child('createdAt').val() === data.child('createdAt').val()) || (data.exists() && data.child('lastActive').val() > now - 86400000 && newData.child('lastActive').val() === now && newData.child('hostUid').val() === data.child('hostUid').val() && newData.child('createdAt').val() === data.child('createdAt').val() && newData.child('status').val() === data.child('status').val() && newData.child('hostOnline').val() === data.child('hostOnline').val() && newData.child('nextHost').val() === data.child('nextHost').val() && newData.child('settings').val() === data.child('settings').val() && (data.child('hostUid').val() === auth.uid || root.child('rooms').child($code).child('seats').child('0').child('uid').val() === auth.uid || root.child('rooms').child($code).child('seats').child('1').child('uid').val() === auth.uid || root.child('rooms').child($code).child('seats').child('2').child('uid').val() === auth.uid || root.child('rooms').child($code).child('seats').child('3').child('uid').val() === auth.uid)) )"
         },
         "seats": {
           ".read": "auth != null",
@@ -35,6 +35,19 @@
             ".write": "auth != null && ($seat === '0' || $seat === '1' || $seat === '2' || $seat === '3') && ( (root.child('rooms').child($code).child('meta').child('hostUid').val() === auth.uid && !newData.exists()) || (newData.child('uid').val() === auth.uid && newData.child('seat').val() + '' === $seat && root.child('rooms').child($code).child('seats').child($seat).child('uid').val() === auth.uid && root.child('rooms').child($code).child('meta').child('lastActive').val() > now - 86400000) )"
           }
         }
+      }
+    },
+    "roomActivity": {
+      ".read": "auth != null",
+      ".indexOn": [".value"],
+      "$code": {
+        ".write": "auth != null && ((newData.val() === now && root.child('rooms').child($code).child('meta').child('lastActive').val() > now - 86400000 && (root.child('rooms').child($code).child('meta').child('hostUid').val() === auth.uid || root.child('rooms').child($code).child('seats').child('0').child('uid').val() === auth.uid || root.child('rooms').child($code).child('seats').child('1').child('uid').val() === auth.uid || root.child('rooms').child($code).child('seats').child('2').child('uid').val() === auth.uid || root.child('rooms').child($code).child('seats').child('3').child('uid').val() === auth.uid)) || (!newData.exists() && data.val() != null && data.val() < now - 86400000))"
+      }
+    },
+    "presence": {
+      ".read": "auth != null",
+      "$uid": {
+        ".write": "auth != null && auth.uid === $uid && (newData.val() === true || !newData.exists())"
       }
     }
   }

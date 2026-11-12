@@ -1,10 +1,12 @@
-import { get, onDisconnect, remove, set, update } from "firebase/database";
-import { db, ensureUser, ref, rememberRoom, roomPath, roomRef, serverTimestamp } from "./firebase";
+import { endAt, get, limitToFirst, onDisconnect, orderByValue, query, remove, set, update } from "firebase/database";
+import { db, ensureUser, knownRooms, ref, rememberRoom, roomPath, roomRef, serverTimestamp } from "./firebase";
 import {
   handsOf,
   makeCode,
   normalizeSeat,
-  roomExpired,
+  ROOM_TTL_MS,
+  roomIsStale,
+  staleActivityCodes,
   toPublic,
   toSecret,
   type HostState,
@@ -17,8 +19,17 @@ export function clean<T>(value: T): T {
   return JSON.parse(JSON.stringify(value));
 }
 
+export async function markRoomActivity(code: string): Promise<void> {
+  const ts = serverTimestamp();
+  await update(ref(db), {
+    [roomPath(code, "meta/lastActive")]: ts,
+    [`roomActivity/${code}`]: ts,
+  });
+}
+
 export async function createRoom(name: string, settings: Settings): Promise<string> {
   const user = await ensureUser();
+  void cleanupStaleRooms();
   for (let i = 0; i < 6; i++) {
     const code = makeCode();
     const metaRef = roomRef(code, "meta");
@@ -37,6 +48,7 @@ export async function createRoom(name: string, settings: Settings): Promise<stri
       ? { uid: user.uid, name, bot: false, connected: true, auto: false }
       : { uid: null, name: "", bot: false, connected: false, auto: false });
     await Promise.all(seats.map((s, n) => set(roomRef(code, `seats/${n}`), s)));
+    await set(ref(db, `roomActivity/${code}`), serverTimestamp());
     rememberRoom(code);
     return code;
   }
@@ -49,14 +61,17 @@ export function parseSeats(raw: Record<string, Partial<Seat>> | null): Seat[] {
 
 export async function writeSeat(code: string, index: number, seat: Seat): Promise<void> {
   await set(roomRef(code, `seats/${index}`), clean(seat));
+  void markRoomActivity(code).catch(() => undefined);
 }
 
 export async function patchSeat(code: string, index: number, patch: Partial<Seat>): Promise<void> {
   await update(roomRef(code, `seats/${index}`), clean(patch));
+  void markRoomActivity(code).catch(() => undefined);
 }
 
 export async function saveSettings(code: string, settings: Settings): Promise<void> {
   await update(roomRef(code, "meta"), { settings, lastActive: serverTimestamp() });
+  void set(ref(db, `roomActivity/${code}`), serverTimestamp()).catch(() => undefined);
 }
 
 export async function publishState(code: string, state: HostState, writeSeats: boolean): Promise<void> {
@@ -80,10 +95,12 @@ export async function publishState(code: string, state: HostState, writeSeats: b
     });
   }
   await update(ref(db), patch);
+  void set(ref(db, `roomActivity/${code}`), serverTimestamp()).catch(() => undefined);
 }
 
 export async function sendIntent(code: string, intent: Intent): Promise<void> {
   await set(roomRef(code, `intents/${intent.seat}`), clean(intent));
+  void markRoomActivity(code).catch(() => undefined);
 }
 
 /**
@@ -142,11 +159,28 @@ export async function transferHost(code: string, uid: string): Promise<void> {
 export async function sweepKnownRooms(codes: string[]): Promise<void> {
   for (const code of codes) {
     try {
-      const snap = await get(roomRef(code, "meta/lastActive"));
-      const last = snap.val();
-      if (typeof last === "number" && roomExpired(last)) await remove(roomRef(code));
+      const snap = await get(roomRef(code, "meta"));
+      if (!roomIsStale(snap.val())) continue;
+      await remove(roomRef(code));
+      await remove(ref(db, `roomActivity/${code}`));
     } catch {
       /* 過期房間刪不掉就留著，規則會拒絕繼續寫入 */
     }
   }
+}
+
+/** 清掉 24 小時沒活動的房間。進行中的房間時間戳還新，刪不掉。 */
+export async function cleanupStaleRooms(): Promise<void> {
+  const cutoff = Date.now() - ROOM_TTL_MS - 1;
+  try {
+    const snap = await get(query(ref(db, "roomActivity"), orderByValue(), endAt(cutoff), limitToFirst(50)));
+    const codes = staleActivityCodes(snap.val(), Date.now());
+    await Promise.all(codes.map(async (code) => {
+      await remove(roomRef(code)).catch(() => undefined);
+      await remove(ref(db, `roomActivity/${code}`)).catch(() => undefined);
+    }));
+  } catch {
+    /* 還沒登入或規則不允許查詢時略過 */
+  }
+  await sweepKnownRooms(knownRooms());
 }

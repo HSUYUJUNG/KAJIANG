@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { get, onValue, remove } from "firebase/database";
 import { bustedSeats, mulberry, projectPublic, startingChips, type HandPrivate, type Match, type PublicView, type Settlement } from "../logic/engine";
-import { db, ensureUser, knownRooms, ref, roomRef, shareUrl } from "../net/firebase";
+import { db, ensureUser, ref, roomRef, shareUrl } from "../net/firebase";
 import { normalizeHand, normalizePublic } from "../net/wire";
 import {
   applyHuman,
@@ -12,7 +12,7 @@ import {
   nextHand,
   paceMs,
   returnToLobby,
-  roomExpired,
+  roomIsStale,
   seatName,
   shuffleSeatsOn,
   stateFromSecret,
@@ -31,7 +31,7 @@ import {
   publishState,
   saveSettings,
   sendIntent,
-  sweepKnownRooms,
+  cleanupStaleRooms,
   transferHost,
   writeSeat,
 } from "../net/rooms";
@@ -78,8 +78,7 @@ export function Online(props: { code: string; name: string; onHome: () => void }
 
   useEffect(() => {
     const id = window.setInterval(() => setNow(Date.now()), 500);
-    void sweepKnownRooms(knownRooms());
-    ensureUser().then((u) => setUid(u.uid)).catch(() => setErr("登入失敗。請到 Firebase 主控台啟用匿名登入。"));
+    ensureUser().then((u) => { setUid(u.uid); return cleanupStaleRooms(); }).catch(() => setErr("登入失敗。請到 Firebase 主控台啟用匿名登入。"));
     return () => window.clearInterval(id);
   }, []);
 
@@ -276,7 +275,7 @@ export function Online(props: { code: string; name: string; onHome: () => void }
   if (!meta || !seats) {
     return <div className="card">{err || "正在進入房間…"}{err ? <div><button className="btn" onClick={props.onHome}>回首頁</button></div> : null}</div>;
   }
-  if (roomExpired(meta.lastActive) && meta.status !== "lobby") {
+  if (roomIsStale(meta) && meta.status !== "lobby") {
     return <div className="card stack"><p>這間房已超過一天，請另開新桌。</p><button className="btn" onClick={props.onHome}>回首頁</button></div>;
   }
 

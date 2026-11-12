@@ -241,6 +241,17 @@ button.tile { cursor: pointer; }
 table { width: 100%; border-collapse: collapse; font-size: 13px; }
 th, td { padding: 4px 2px; border-bottom: 1px solid var(--line); text-align: left; }
 td.num, th.num { text-align: right; }
+.capacity-wait {
+  position: fixed; inset: 0; z-index: 40; background: #fff; color: #2a2a2a;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px;
+  font-size: 16px; line-height: 1.4;
+}
+.capacity-spin {
+  width: 36px; height: 36px; border-radius: 50%;
+  border: 3px solid #e5e7eb; border-top-color: #9ca3af;
+  animation: capacity-spin 0.8s linear infinite;
+}
+@keyframes capacity-spin { to { transform: rotate(360deg); } }
 .tabs { display: flex; gap: 6px; margin-bottom: 10px; }
 .tabs button { flex: 1; }
 details { margin-top: 14px; }

@@ -9,10 +9,10 @@
 資料庫目前若還是測試模式，**任何人都能讀取全部資料，包含別人的手牌**。請先做完下面三步再把連結傳給朋友。
 
 1. 打開 [Firebase 主控台](https://console.firebase.google.com/project/kajiang/authentication/providers)，進入 Authentication → Sign-in method，啟用 **Anonymous（匿名）**。
-2. 打開 Realtime Database → 規則，把這個專案裡的 [`database.rules.json`](database.rules.json) 全部貼上並發布。規則會讓每位玩家只能讀自己的 `hands/{座位}`，牌牆與他家手牌只放在房主才能讀的 `secret`。
+2. 打開 [Firebase 主控台的 Realtime Database](https://console.firebase.google.com/project/kajiang/database)，選上面的「規則」，把這個專案裡的 [`database.rules.json`](database.rules.json) 全部貼上，按「發布」。規則會讓每位玩家只能讀自己的 `hands/{座位}`，牌牆與他家手牌只放在房主才能讀的 `secret`。GitHub Pages 不會發布這份規則；這次多了過期房間與連線人數，沒重新發布的話，過期房刪不掉，額滿等候也不會提前出現。
 3. 打開 GitHub 專案 **Settings → Pages → Build and deployment**，Source 選 **GitHub Actions**。合併到 `main` 之後，Actions 會把網站部署到上面的網址。
 
-房間超過一天沒有動靜會被視為過期：規則拒絕再寫入，玩家打開舊連結時也會嘗試刪除。
+房間超過一天沒有動靜會被刪除（打完的房間也一樣）。開啟網站或開新房間時，會清掉最多 50 間過期房。正在使用的房間不會刪。免費方案同時連線約 100 人，快滿時後來的人會看到「目前測試額滿中，請稍待」，有空位就自動進去。已經在打牌的人切到背景不會被送進這個畫面。
 
 ## 怎麼打
 
@@ -20,7 +20,7 @@
 2. 把連結或四字代碼傳給朋友。朋友打開後入座。
 3. 房主可以先把空位設成電腦，或直接開始，剩下的空位會變成電腦。
 4. 房主的瀏覽器負責洗牌、電腦與胡牌判定。其他人只送出打牌、吃、碰、槓、胡、過。
-5. 叫牌約 9 秒沒按就自動過。斷線約 4 秒後由電腦代打，重新打開同一個連結會坐回原位。
+5. 碰、吃、槓約 9 秒沒按就自動過。胡和自摸會等到本人按。人離開很久才代打一張，切回來就恢復自己打。
 6. 房主若要離開，先按「移交」給還在線的朋友。沒移交就關掉頁面的話，牌局會暫停，等房主回來；暗牌不會交給別人。
 
 單機練習（出牌解析、猜聽牌、三家電腦）不用連線。
