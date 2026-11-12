@@ -494,3 +494,22 @@ export function stateFromSecret(meta: RoomMeta, seats: Seat[], secret: SecretSta
 export function roomExpired(lastActive: number, now = Date.now()): boolean {
   return !lastActive || now - lastActive > ROOM_TTL_MS;
 }
+
+/** 沒有 lastActive 的舊房間改看 createdAt；兩個都沒有就當作已過期。 */
+export function roomIsStale(meta: { lastActive?: unknown; createdAt?: unknown } | null, now = Date.now()): boolean {
+  if (!meta) return false;
+  const last = typeof meta.lastActive === "number" ? meta.lastActive : null;
+  const created = typeof meta.createdAt === "number" ? meta.createdAt : null;
+  const stamp = last ?? created ?? 0;
+  return now - stamp > ROOM_TTL_MS;
+}
+
+/** 給清理用：挑出活動時間早於 24 小時的房間代碼，最多 limit 間。 */
+export function staleActivityCodes(index: Record<string, number> | null, now = Date.now(), limit = 50): string[] {
+  const cutoff = now - ROOM_TTL_MS;
+  return Object.entries(index ?? {})
+    .filter((entry): entry is [string, number] => typeof entry[1] === "number" && entry[1] < cutoff)
+    .sort((a, b) => a[1] - b[1])
+    .slice(0, limit)
+    .map(([code]) => code);
+}

@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { assertFails, assertSucceeds, initializeTestEnvironment, type RulesTestEnvironment } from "@firebase/rules-unit-testing";
-import { get, ref, remove, set, update } from "firebase/database";
+import { endAt, get, limitToFirst, orderByValue, query, ref, remove, set, update } from "firebase/database";
 import { serverTimestamp } from "firebase/database";
 import { mulberry } from "../src/logic/engine";
 import {
@@ -79,7 +79,7 @@ describe("資料庫規則與兩人一局", () => {
       status: "lobby",
       hostOnline: true,
       nextHost: null,
-      settings: { len: "quan", base: 50, per: 20, anim: "off" },
+      settings: { len: "quan", base: 50, per: 20, anim: "off", shuffle: false },
     };
     const seats: Seat[] = emptySeats();
     seats[0] = { uid: "alice", name: "春", bot: false, connected: true, auto: false };
@@ -136,6 +136,35 @@ describe("資料庫規則與兩人一局", () => {
     });
     await assertSucceeds(remove(ref(alice, "rooms/OLD")));
   }, 60000);
+
+  it("只刪超過一天的房間，進行中的留下", async () => {
+    await env.clearDatabase();
+    const now = Date.now();
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const d = ctx.database(URL);
+      const meta = (extra: Record<string, unknown>) => ({ hostUid: "alice", status: "lobby", hostOnline: false, nextHost: null, settings: { len: "quan", base: 50, per: 20, anim: "off" }, ...extra });
+      await set(ref(d, "rooms/OLDROOM/meta"), meta({ createdAt: 1, lastActive: 1 }));
+      await set(ref(d, "rooms/NEWROOM/meta"), meta({ createdAt: now, lastActive: now }));
+      await set(ref(d, "rooms/LEGACY/meta"), meta({ createdAt: 1 }));
+      await set(ref(d, "rooms/FRESHLEGACY/meta"), meta({ createdAt: now }));
+      await set(ref(d, "rooms/EMPTY/meta"), meta({}));
+      await set(ref(d, "roomActivity/OLDROOM"), 1);
+      await set(ref(d, "roomActivity/NEWROOM"), now);
+    });
+    const bob = db("bob");
+    const listed = await get(query(ref(bob, "roomActivity"), orderByValue(), endAt(now - 86400000 - 1), limitToFirst(50)));
+    expect(Object.keys(listed.val() || {})).toEqual(["OLDROOM"]);
+    await assertSucceeds(remove(ref(bob, "rooms/OLDROOM")));
+    await assertSucceeds(remove(ref(bob, "roomActivity/OLDROOM")));
+    await assertFails(remove(ref(bob, "rooms/NEWROOM")));
+    await assertFails(remove(ref(bob, "roomActivity/NEWROOM")));
+    await assertSucceeds(remove(ref(bob, "rooms/LEGACY")));
+    await assertFails(remove(ref(bob, "rooms/FRESHLEGACY")));
+    await assertSucceeds(remove(ref(bob, "rooms/EMPTY")));
+    await assertFails(set(ref(bob, "presence/alice"), true));
+    await assertSucceeds(set(ref(bob, "presence/bob"), true));
+    await assertSucceeds(remove(ref(bob, "presence/bob")));
+  });
 });
 
 async function publish(state: HostState) {

@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
-import { createRoom } from "./net/rooms";
-import { defaultSettings, saveName, savedName } from "./net/firebase";
+import { cleanupStaleRooms, createRoom } from "./net/rooms";
+import { defaultSettings, ensureUser, saveName, savedName } from "./net/firebase";
 import type { Settings } from "./net/host";
+import { CapacityGate } from "./ui/CapacityGate";
 import { GameBoundary } from "./ui/ErrorBoundary";
 import { ChipControl, LobbyPreview, Online } from "./ui/Online";
 import { Practice } from "./ui/Practice";
@@ -22,6 +23,8 @@ export function App() {
   const [settings, setSettings] = useState<Settings>(defaultSettings);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
+
+  useEffect(() => { void ensureUser().then(() => cleanupStaleRooms()).catch(() => undefined); }, []);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -74,6 +77,7 @@ export function App() {
   };
 
   return (
+    <CapacityGate>
     <div className="app">
       <header className="top">
         <div className="brand">
@@ -122,6 +126,7 @@ export function App() {
       ) : null}
       </GameBoundary>
     </div>
+    </CapacityGate>
   );
 }
 
