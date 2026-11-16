@@ -440,6 +440,8 @@ export function illusion(pub: PublicView, hand: HandPrivate, seat: number): Game
     humans: [seat],
     auto: [],
     names: [...pub.names],
+    defend: [false, false, false, false],
+    classicAi: false,
   };
 }
 export function suggestFromPrivate(pub: PublicView, hand: HandPrivate, seat: number, uid: string): Intent | null {
