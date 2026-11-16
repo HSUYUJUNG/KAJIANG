@@ -384,6 +384,10 @@ export interface Game {
   humans: number[];
   auto: number[];
   names: string[];
+  /** 這一局哪些電腦偏防守。不進公開畫面。 */
+  defend: boolean[];
+  /** 測試用：沿用只顧自己組牌的舊出牌。 */
+  classicAi: boolean;
 }
 export type ClaimChoice =
   | { kind: "pass" }
@@ -429,6 +433,8 @@ export function cloneGame(g: Game): Game {
     humans: [...g.humans],
     auto: [...g.auto],
     names: [...g.names],
+    defend: g.defend ? [...g.defend] : [false, false, false, false],
+    classicAi: !!g.classicAi,
   };
 }
 function removeTiles(hand: number[], tiles: number[]): void {
@@ -445,7 +451,7 @@ function addLog(g: Game, s: string): void {
 
 const PRACTICE_NAMES = ["你", "下家", "對家", "上家"];
 
-export function newGame(rng: Rng, dealerSeat?: number, opts?: { humans?: number[]; names?: string[]; auto?: number[] }): Game {
+export function newGame(rng: Rng, dealerSeat?: number, opts?: { humans?: number[]; names?: string[]; auto?: number[]; classicAi?: boolean }): Game {
   const all: number[] = [];
   for (let t = 0; t < NT; t++) for (let k = 0; k < 4; k++) all.push(t);
   const wall = shuffle(all, rng);
@@ -459,6 +465,8 @@ export function newGame(rng: Rng, dealerSeat?: number, opts?: { humans?: number[
     humans: opts?.humans ? [...opts.humans] : [0],
     auto: opts?.auto ? [...opts.auto] : [],
     names: opts?.names ? [...opts.names] : [...PRACTICE_NAMES],
+    defend: opts?.classicAi ? [false, false, false, false] : rollDefend(rng, opts?.humans ?? [0], opts?.auto ?? []),
+    classicAi: !!opts?.classicAi,
   };
   for (const p of players) p.hand = sortTiles(p.hand);
   addLog(g, `新局開始，${nm(g, dealer)}當莊。`);
@@ -479,6 +487,8 @@ export function makeGame(partial: {
   calls?: number;
   discardCount?: number;
   draws?: number[];
+  defend?: boolean[];
+  classicAi?: boolean;
 }): Game {
   const players: Player[] = [0, 1, 2, 3].map((i) => ({
     hand: sortTiles(partial.hands[i] ?? []),
@@ -495,6 +505,8 @@ export function makeGame(partial: {
     humans: partial.humans ? [...partial.humans] : [],
     auto: [],
     names: partial.names ? [...partial.names] : ["甲", "乙", "丙", "丁"],
+    defend: partial.defend ? [...partial.defend] : [false, false, false, false],
+    classicAi: !!partial.classicAi,
   };
   return g;
 }
@@ -648,7 +660,7 @@ export function discard(g0: Game, p: number, t: number): Game {
   return resolveClaims(g, {});
 }
 
-export function cpuWantsCall(pl: Player, removeFromHand: number[]): boolean {
+export function cpuWantsCall(pl: Player, removeFromHand: number[], strict = false): boolean {
   const before = shanten(toCounts(pl.hand), needOf(pl));
   const c = toCounts(pl.hand);
   for (const x of removeFromHand) c[x]--;
@@ -661,23 +673,25 @@ export function cpuWantsCall(pl: Player, removeFromHand: number[]): boolean {
     if (s < best) best = s;
     c[d]++;
   }
-  return best < before && best <= 2;
+  return best < before && best <= (strict ? 1 : 2);
 }
 export function cpuClaim(g: Game, p: number, t: number, from: number): ClaimChoice {
   const pl = g.players[p];
   const o = optionsFor(g, p, t, from);
   if (o.ron) return { kind: "ron" };
+  const strict = folding(g, p);
   if (o.kan) {
     const c = toCounts(pl.hand);
     const before = shanten(c, needOf(pl));
     c[t] -= 3;
-    if (shanten(c, needOf(pl) - 1) <= before) return { kind: "kan" };
+    const after = shanten(c, needOf(pl) - 1);
+    if (after <= before && (!strict || after <= 1)) return { kind: "kan" };
   }
-  if (o.pon && cpuWantsCall(pl, [t, t])) return { kind: "pon" };
+  if (o.pon && cpuWantsCall(pl, [t, t], strict)) return { kind: "pon" };
   for (const ch of o.chi) {
     const rest = [...ch];
     rest.splice(rest.indexOf(t), 1);
-    if (cpuWantsCall(pl, rest)) return { kind: "chi", tiles: ch };
+    if (cpuWantsCall(pl, rest, strict)) return { kind: "chi", tiles: ch };
   }
   return { kind: "pass" };
 }
@@ -875,50 +889,240 @@ function isolationScore(c: number[], t: number): number {
   for (let d = -2; d <= 2; d++) if (d !== 0 && r + d >= 0 && r + d <= 8) near += c[t + d];
   return (near === 0 ? 2 : 0) + (r === 0 || r === 8 ? 1 : 0);
 }
-export function cpuChooseDiscard(g: Game, p: number): number {
+
+/** 三家電腦隨機挑 1 或 2 家防守；少於三家就少挑，讓人看不出是哪一家。 */
+function rollDefend(rng: Rng, humans: number[], auto: number[]): boolean[] {
+  const ai = [0, 1, 2, 3].filter((p) => !humans.includes(p) || auto.includes(p));
+  const flags = [false, false, false, false];
+  if (ai.length === 0) return flags;
+  const order = shuffle(ai, rng);
+  let n = 1;
+  if (ai.length >= 3) n = rng() < 0.5 ? 1 : 2;
+  else if (ai.length === 1) n = rng() < 0.5 ? 1 : 0;
+  for (let i = 0; i < n && i < order.length; i++) flags[order[i]] = true;
+  return flags;
+}
+
+function terminalOrHonor(t: number): boolean {
+  return t >= 27 || t % 9 === 0 || t % 9 === 8;
+}
+
+/** 別家有多危險：露面子、牌牆深淺、尾盤在丟邊張或字。 */
+function threatOf(pl: Player, wallLen: number): number {
+  const open = pl.melds.reduce((n, m) => n + (m.kind === "ankan" ? 0 : 1), 0);
+  let s = open * 2;
+  if (open >= 2) s += 1;
+  if (open >= 3) s += 3;
+  if (pl.melds.length >= 4) s += 2;
+  const live = wallLen - RESERVE;
+  if (live <= 30) s += 1;
+  if (live <= 18) s += 2;
+  if (live <= 8) s += 2;
+  const tail = pl.discards.slice(-4);
+  let dumps = 0;
+  for (const t of tail) if (terminalOrHonor(t)) dumps++;
+  if (dumps >= 3 && (open >= 1 || live <= 24)) s += 2;
+  if (open >= 2 && pl.discards.length <= open * 3 + 2) s += 1;
+  return s;
+}
+
+function sujiMask(discards: number[]): boolean[] {
+  const m = new Array<boolean>(NT).fill(false);
+  for (const d of discards) {
+    if (d >= 27) continue;
+    const base = Math.floor(d / 9) * 9;
+    const r = d % 9;
+    if (r >= 3) m[base + r - 3] = true;
+    if (r <= 5) m[base + r + 3] = true;
+  }
+  return m;
+}
+
+interface ThreatInfo { p: number; score: number; gen: boolean[]; recent: boolean[]; suji: boolean[] }
+
+function threatsOf(g: Game, me: number): ThreatInfo[] {
+  const list: ThreatInfo[] = [];
+  for (let p = 0; p < 4; p++) {
+    if (p === me) continue;
+    const pl = g.players[p];
+    const gen = new Array<boolean>(NT).fill(false);
+    const recent = new Array<boolean>(NT).fill(false);
+    for (const t of pl.discards) gen[t] = true;
+    for (const t of pl.discards.slice(-6)) recent[t] = true;
+    list.push({ p, score: threatOf(pl, g.wall.length), gen, recent, suji: sujiMask(pl.discards) });
+  }
+  list.sort((a, b) => b.score - a.score || a.p - b.p);
+  return list;
+}
+
+function dangerScore(g: Game, p: number): number {
+  return threatsOf(g, p)[0]?.score ?? 0;
+}
+
+function folding(g: Game, p: number): boolean {
+  return !g.classicAi && !!g.defend?.[p] && dangerScore(g, p) >= 5;
+}
+
+/** 下家已經吃過的順子，再打旁邊那張就很容易被吃。 */
+function chiFeedRisk(next: Player, t: number): number {
+  if (t >= 27) return 0;
+  const suit = Math.floor(t / 9);
+  const r = t % 9;
+  let risk = 0;
+  for (const m of next.melds) {
+    if (m.kind !== "chi") continue;
+    const tiles = m.tiles.filter((x) => x >= 0 && Math.floor(x / 9) === suit);
+    if (tiles.length < 2) continue;
+    const ranks = tiles.map((x) => x % 9);
+    const min = Math.min(...ranks);
+    const max = Math.max(...ranks);
+    if (r === min - 1 || r === max + 1) risk += 2;
+  }
+  return risk;
+}
+
+/** 3 現物或全死，2 剩一張或危險家丟過，1 筋、邊張、已見過的字。 */
+function safeTier(t: number, a: Analyzed, threats: ThreatInfo[], next: Player): number {
+  const outside = 4 - a.vis[t];
+  const hot = threats.filter((th) => th.score >= 5);
+  const top = hot[0] ?? threats[0];
+  const feed = chiFeedRisk(next, t) >= 2;
+  if (outside <= 0) return 3;
+  if (top && top.score >= 5 && top.recent[t] && !feed) return 3;
+  if (hot.length > 0 && hot.every((th) => th.gen[t]) && !feed) return 3;
+  if (outside === 1) return 2;
+  if (top && top.score >= 4 && top.gen[t]) return feed ? 1 : 2;
+  let tier = 0;
+  if (top && top.score >= 5 && top.suji[t]) tier = 1;
+  else if (t >= 27 && a.vis[t] - a.c[t] >= 1) tier = 1;
+  else if (t < 27 && (t % 9 === 0 || t % 9 === 8)) tier = 1;
+  if (tier > 0 && feed) tier = 0;
+  return tier;
+}
+
+interface DiscardRow { t: number; s: number; uke: number | null }
+interface Analyzed { c: number[]; need: number; vis: number[]; bestS: number; rows: DiscardRow[] }
+
+function analyzeDiscards(g: Game, p: number): Analyzed {
   const pl = g.players[p];
   const need = needOf(pl);
   const c = toCounts(pl.hand);
   const vis = visibleFor(g, p);
   let bestS = 99;
-  const cand: number[] = [];
+  const rows: DiscardRow[] = [];
   for (let t = 0; t < NT; t++) {
     if (c[t] === 0) continue;
     c[t]--;
     const s = shanten(c, need);
     c[t]++;
-    if (s < bestS) {
-      bestS = s;
-      cand.length = 0;
-      cand.push(t);
-    } else if (s === bestS) cand.push(t);
+    if (s < bestS) bestS = s;
+    rows.push({ t, s, uke: null });
   }
-  let best = cand[0], bestU = -1, bestI = -1;
-  for (const t of cand) {
-    c[t]--;
-    const u = ukeire(c, need, vis).total;
-    c[t]++;
-    const iso = isolationScore(c, t);
+  return { c, need, vis, bestS, rows };
+}
+
+function ukeOf(a: Analyzed, row: DiscardRow): number {
+  if (row.uke !== null) return row.uke;
+  a.c[row.t]--;
+  row.uke = ukeire(a.c, a.need, a.vis).total;
+  a.c[row.t]++;
+  return row.uke;
+}
+
+function pickOffensive(a: Analyzed): number {
+  let best = a.rows[0]?.t ?? 0;
+  let bestU = -1;
+  let bestI = -1;
+  for (const row of a.rows) {
+    if (row.s !== a.bestS) continue;
+    const u = ukeOf(a, row);
+    const iso = isolationScore(a.c, row.t);
     if (u > bestU || (u === bestU && iso > bestI)) {
-      best = t;
+      best = row.t;
       bestU = u;
       bestI = iso;
     }
   }
   return best;
 }
+
+function lightTrigger(g: Game, threats: ThreatInfo[]): boolean {
+  const live = g.wall.length - RESERVE;
+  for (const th of threats) {
+    const open = g.players[th.p].melds.filter((m) => m.kind !== "ankan").length;
+    if (open >= 3 || g.players[th.p].melds.length >= 3) return true;
+    if (open >= 2 && live <= 24) return true;
+  }
+  return live <= 12 && (threats[0]?.score ?? 0) >= 5;
+}
+
+interface SafeOpts { hard: number; soft: number; slack: number; plus: boolean }
+
+function pickSafer(a: Analyzed, g: Game, p: number, threats: ThreatInfo[], base: number, opts: SafeOpts): number {
+  const next = g.players[(p + 1) % 4];
+  const baseRow = a.rows.find((row) => row.t === base);
+  const baseU = baseRow ? ukeOf(a, baseRow) : 0;
+  const baseTier = safeTier(base, a, threats, next);
+  let sameStrong = false;
+  for (const row of a.rows) {
+    if (row.s === a.bestS && safeTier(row.t, a, threats, next) >= 2) sameStrong = true;
+  }
+  let bestT = base;
+  let bestTier = baseTier;
+  let bestU = baseU;
+  let bestS = baseRow?.s ?? a.bestS;
+  let bestI = isolationScore(a.c, base);
+  for (const row of a.rows) {
+    const plus = row.s === a.bestS + 1;
+    if (row.s !== a.bestS && !(opts.plus && plus)) continue;
+    if (plus && (sameStrong || baseTier > 0)) continue;
+    const tier = safeTier(row.t, a, threats, next);
+    if (plus && tier < 1) continue;
+    if (tier <= baseTier) continue;
+    if (tier < opts.hard && tier < opts.soft) continue;
+    const u = ukeOf(a, row);
+    if (tier < opts.hard && u + opts.slack < baseU) continue;
+    const iso = isolationScore(a.c, row.t);
+    const better = tier > bestTier
+      || (tier === bestTier && row.s < bestS)
+      || (tier === bestTier && row.s === bestS && (u > bestU || (u === bestU && iso > bestI)));
+    if (!better) continue;
+    bestT = row.t;
+    bestTier = tier;
+    bestU = u;
+    bestS = row.s;
+    bestI = iso;
+  }
+  return bestT;
+}
+
+export function cpuChooseDiscard(g: Game, p: number): number {
+  const a = analyzeDiscards(g, p);
+  const base = pickOffensive(a);
+  if (g.classicAi) return base;
+  const threats = threatsOf(g, p);
+  const danger = threats[0]?.score ?? 0;
+  const defend = !!g.defend?.[p];
+  if (defend && (danger >= 8 || (danger >= 5 && a.bestS >= 2))) return pickSafer(a, g, p, threats, base, { hard: 1, soft: 1, slack: 99, plus: true });
+  if (defend && danger >= 6) return pickSafer(a, g, p, threats, base, { hard: 1, soft: 1, slack: 99, plus: false });
+  if (defend && danger >= 4) return pickSafer(a, g, p, threats, base, { hard: 3, soft: 2, slack: 6, plus: false });
+  if (lightTrigger(g, threats)) return pickSafer(a, g, p, threats, base, { hard: 3, soft: 2, slack: 6, plus: false });
+  return base;
+}
+
 export function cpuStep(g: Game): Game {
   const p = g.turn;
   if (g.phase !== "turn") throw new Error("cpuStep wrong phase");
   if (canTsumo(g, p)) return tsumo(g, p);
   const pl = g.players[p];
+  const strict = folding(g, p);
   for (const k of kanOptions(g, p)) {
     const c = toCounts(pl.hand);
     const before = shanten(c, needOf(pl));
     if (k.kind === "ankan") c[k.tile] -= 4;
     else c[k.tile] -= 1;
     const after = shanten(c, k.kind === "ankan" ? needOf(pl) - 1 : needOf(pl));
-    if (after <= before) return declareKan(g, p, k);
+    if (after <= before && !(strict && k.kind === "added")) return declareKan(g, p, k);
   }
   return discard(g, p, cpuChooseDiscard(g, p));
 }
